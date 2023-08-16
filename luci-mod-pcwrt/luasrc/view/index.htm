@@ -1,0 +1,15 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+
+<div class="container">
+	<div class="icon-grid">
+		<% for _i, v in ipairs(modules) do %>
+		<div class="text-center">
+			<a href="<%=build_url(v.name)%>"><img src="<%=media%>/img/<%=v.name%>.svg"></a>
+			<a href="<%=build_url(v.name)%>"><%=pcdata(get_display_name(v))%></a>
+		</div>
+		<% end %>
+	</div>
+</div>
+
+<%+'_footer'%>

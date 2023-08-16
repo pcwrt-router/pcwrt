@@ -1,0 +1,39 @@
+<div id="proto-l2tp" class="proto-option hidden">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<input type="hidden" name="proto" value="l2tp">
+<div class="form-group">
+	<label class="control-label required" for="l2tp-server" data-hint="<%:IP Address of the L2TP server%>"><%:L2TP server%></label>
+	<input class="form-control" type="text" id="l2tp-server" name="server">
+</div>
+<div class="form-group">
+	<label class="control-label" for="l2tp-username" data-hint="<%:User name provided by your Internet Service Provider (ISP)%>"><%:Username%></label>
+	<input class="form-control" type="text" id="l2tp-username" name="username" autocomplete="off">
+</div>
+<div class="form-group">
+	<label class="control-label" for="l2tp-password" data-hint="<%:Password provided by your Internet Service Provider (ISP)%>"><%:Password%></label>
+	<input class="form-control" type="password" id="l2tp-password" name="password" autocomplete="off">
+</div>
+<div class="form-group">
+	<input type="checkbox" id="l2tp-peerdns" name="peerdns" value="0">
+	<label class="control-label" for="l2tp-peerdns" data-hint="<%:Check this box to override DNS servers provided by your Internet Service Provider (ISP)%>"><%:Use custom DNS servers%></label>
+</div>
+<div>
+<div>
+<div class="form-group">
+	<label class="control-label required" for="l2tp-dns1" data-hint="<%:IP address of the DNS server%>"><%:DNS server%></label>
+	<input class="form-control" type="text" id="l2tp-dns1" name="dns1">
+</div>
+<div class="form-group">
+	<label class="control-label" for="l2tp-dns2" data-hint="<%:IP address of the alternative DNS server%>"><%:Alternative DNS server%></label>
+	<input class="form-control" type="text" id="l2tp-dns2" name="dns2">
+</div>
+</div>
+<div class="form-group">
+	<label class="control-label" for="l2tp-mtu" data-hint="<%:Override the size of the maximum transmission unit (MTU).%>"><%:Override MTU%></label>
+	<input class="form-control" type="text" id="l2tp-mtu" name="mtu">
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+</div>

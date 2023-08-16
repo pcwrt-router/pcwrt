@@ -1,0 +1,116 @@
+<%+'_header'%>
+<form id="fetch-timezones" action="<%=build_url('timezone/fetch_timezones')%>" method="GET">
+	<input type="hidden" name="tz_offset">
+	<input type="hidden" name="dst">
+</form>
+	
+<div class="container setup">
+	<div class="container pcwrt-dialog">
+		<div class="text-center padding-bottom-10">
+			<a href="http://www.pcwrt.com">
+			<img id="brand" src="<%=media%>/img/pcwrt.png" title="pcWRT">
+			</a>
+		</div>
+
+		<div id="top-buttons" class="btn-group margin-top-10" role="group" aria-label="...">
+			<button id="set-pwd-btn" type="button" class="btn btn-default"><%:Router Password%></button>
+			<button id="set-tz-btn" type="button" class="btn btn-default"><%:Timezone%></button>
+			<button id="set-wifi-btn" type="button" class="btn btn-default"><%:Wifi SSID & Password%></button>
+		</div>
+
+		<form id="setup-form" class="narrower-form margin-top-30" action="<%=build_url('setup/update')%>" method="POST">
+		<div class="form-group text-left has-error hidden">
+			<p id="error-msg" class="control-label"></p>
+		</div>
+
+		<div id="pwd-panel" class="setup-panel hidden">
+			<p class="text-left"><%:You are configuring the router for the first time. Please set
+			a password. You will need to enter this password in the future in
+			order to manage this router.%></p>
+			<div class="form-group text-left">
+				<label class="control-label" for="password1"><%:Password%></label> 
+				<input class="form-control" id="password1" name="password1" type="password"	autocomplete="off">
+			</div>
+			<div class="form-group text-left">
+				<label class="control-label"  for="password2"><%:Confirm Password%></label> 
+				<input class="form-control" id="password2" name="password2" type="password"	autocomplete="off">
+			</div>	
+		</div>
+
+		<div id="tz-panel" class="setup-panel hidden">
+			<div class="form-group text-left" id="timezone-group">
+			<div class="radio">
+			<label>
+				<input type="radio" name="timezonefilter" value="all">
+				<%:Choose from all timezones%>	
+			</label>
+			</div>
+			<div class="radio">
+			<label>
+				<input type="radio" name="timezonefilter" value="filtered" checked>
+				<%:Choose from timezones with the same UTC offset as browser%>
+			</label>
+			</div>
+			<select class="form-control" name="zonename" id="zonename">
+			</select>
+			</div>
+		</div>
+
+		<div id="wifi-panel" class="setup-panel hidden">
+			<input type="hidden" name="devices">
+			<ul class="nav nav-tabs" role="tablist" style="display:none">
+				<li role="presentation" class="active">
+					<a href="#" aria-controls="" role="tab"></a>
+				</li>
+			</ul>
+
+			<div class="tab-content">
+			<div role="tabpanel" class="tab-pane fade in active">
+			<div class="pull-right"><a class="disable-wifi" href="#"><%:Disable%></a></div>
+			<div class="clearfix" style="display:none"></div><div class="spacer" style="height:40px;display:none"></div>
+			<div class="form-group text-left">
+				<label class="control-label" for="ssid-1"><%:SSID%></label> 
+				<input class="form-control" id="ssid-1" name="ssid" value="pcwrt">
+			</div>
+
+			<div class="form-group text-left">
+				<label class="control-label" for="encryption-1"><%:Encryption%></label> 
+				<select class="form-control" name="encryption" id="encryption-1">
+				</select>
+			</div>
+
+			<div class="form-group text-left cipher-div">
+				<label class="control-label" for="cipher-1"><%:Cipher%></label> 
+				<select class="form-control" id="cipher-1" name="cipher">
+				</select>
+			</div>
+
+			<div class="form-group text-left key-div">
+				<label class="control-label" for="key-1"><%:Key%></label> 
+				<input class="form-control reveal" id="key-1" name="key" type="password" autocomplete="off">
+			</div>
+			</div>
+			</div>
+		</div>
+
+		<div id="action-panel" class="text-center">
+			<button id="back-btn" class="btn btn-default hidden"><%:Back%></button>
+			<button id="next-btn" class="btn btn-success hidden"><%:Next%></button>
+			<button type="submit" id="finish-btn" class="btn btn-primary hidden"><%:Finish%></button>
+		</div>
+
+		</form>
+	</div>
+</div>
+<script type="text/javascript">
+window.msgs = {
+	disable: '<%:Disable%>',
+	enable: '<%:Enable%>',
+	enter_password: '<%:Please enter password%>',
+	confirm_password: '<%:Please confirm your password%>',
+	password_not_match: '<%:Passwords do not match%>',
+	enc_key_invalid: '<%:Encryption key must be a string between 8 and 63 characters, or a hex string of length 64%>',
+	enter_ssid: '<%:Please enter SSID%>'
+};
+</script>
+<%+'_footer'%>

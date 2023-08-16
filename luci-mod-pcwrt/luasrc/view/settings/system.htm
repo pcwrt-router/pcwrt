@@ -1,0 +1,295 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+	
+<div class="container settings-header">
+<h3><%:System Settings%></h3>
+<span class="required-mark" title="<%:Required mark%>"></span> <%:indicates required field.%>
+</div>
+
+<div class="container">
+
+<form id="fetch-timezones" action="<%=build_url('timezone/fetch_timezones')%>" method="GET">
+	<input type="hidden" name="tz_offset">
+	<input type="hidden" name="dst">
+</form>
+
+<div class="col-md-5 offset-5pct">
+<form name="general" action="<%=build_url(section..'/system/update_general')%>" method="POST">
+<fieldset>
+<legend><%:General%></legend>
+<div class="form-group">
+	<label class="control-label required" for="hostname"><%:Hostname%></label> 
+	<input class="form-control" id="hostname" name="hostname">
+</div>
+
+<div class="form-group" id="timezone-group">
+	<label class="control-label required" for="zonename"><%:Timezone%></label> 
+	<div class="radio">
+	<label>
+		<input type="radio" name="timezonefilter" value="all" checked>
+		<%:Choose from all timezones%>	
+	</label>
+	</div>
+	<div class="radio">
+	<label>
+		<input type="radio" name="timezonefilter" value="filtered">
+		<%:Choose from timezones with the same UTC offset as browser%>
+	</label>
+	</div>
+	<select class="form-control" name="zonename" id="zonename">
+	</select>
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="current-time"><%:Current Time%></label>: <span id="localtime"></span>
+	<div class="input-group">
+	<button id="sync-time" data-url="<%=build_url(section..'/system/sync_time')%>" class="btn btn-default margin-bottom-10 pull-right"><%:Sync Time with Browser%></button>
+	</div>
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="ntp-servers"><%:NTP Servers%></label> 
+	<div class="checkbox">
+		<label>
+			<input type="checkbox" name="enable_server" value="1" id="enable-server">
+			<%:Enable local server%>
+		</label>
+	</div>
+	<ul id="ntp-servers"></ul>
+	<div class="input-group">
+		<input class="form-control" id="ntp-server" name="ntp-server" placeholder="<%:NTP Server hostname%>">
+		<span class="input-group-addon list-add">&nbsp;&nbsp;</span>
+	</div>
+	<input name="ntp_servers" type="hidden" disabled="true">
+</div>
+
+<div class="form-group pull-right">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</fieldset>
+</form>
+</div>
+
+<div class="col-md-5 offset-5pct">
+<form name="admin" action="<%=build_url(section..'/system/update_ssh')%>" method="POST">
+<fieldset>
+<legend><%:Administration%></legend>
+<div class="form-group">
+	<button class="btn btn-default" id="change-password-btn"><%:Change Router Password%></button>
+</div>
+<% if ssh_avail then %>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="enable_ssh" value="true" id="enable-ssh">
+		<%:Enable SSH%>
+	</label>
+</div>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="PasswordAuth" value="on" id="enable-sshpwd">
+		<%:Allow SSH login with password%>
+	</label>
+</div>
+<div class="form-group">
+	<label class="control-label" for="ssh-keys" data-hint="<%:Here you can paste public SSH-Keys (one per line) for SSH public-key authentication.%>"><%:SSH Keys%></label>
+	<textarea class="form-control" name="ssh_keys" id="ssh-keys"></textarea>
+</div>
+
+<div class="form-group pull-right">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+<% end %>
+</fieldset>
+</form>
+
+<fieldset>
+<legend><%:Backup/Restore Settings%></legend>
+<div class="form-group">
+	<% if reset_avail then %>
+	<button id="reset-settings" data-url="<%=build_url(section..'/system/reset')%>" class="btn btn-default margin-bottom-10"><%:Restore Factory Default%></button>
+	<% end %>
+	<a class="btn btn-default margin-bottom-10" href="<%=build_url(section..'/system/backup')%>"><%:Backup%></a>
+	<button id="restore-backup" class="btn btn-default margin-bottom-10"><%:Restore Backup%></button>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-5 offset-5pct">
+<form name="hosts-form" action="<%=build_url(section..'/system/update_hosts')%>" method="POST">
+<fieldset>
+<legend><%:Hosts%></legend>
+<p class="help-block"><%:You can add host name to IP address mapping here. One
+entry per line.%></p>
+<div class="form-group">
+	<textarea class="form-control" name="hosts" id="hosts-input"></textarea>
+</div>
+<div class="form-group pull-right">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</fieldset>
+</form>
+</div>
+
+<div class="col-md-5 offset-5pct" id="flash-div">
+<fieldset>
+<legend><%:Flash New Firmware%></legend>
+<div id="manual-flash">
+<form name="upload" action="<%=build_url(section..'/system/upload_image')%>" method="POST" enctype="multipart/form-data">
+<% if upgrade_avail then %>
+<p class="help-block">
+<%:Click "Browse" to select new firmware image, then click "Flash". Check "Keep settings" to retain the current configuration.%>
+</p>
+<div class="form-group">
+<div class="input-group">
+	<span class="input-group-btn">
+	<span class="btn btn-default btn-file">
+	<%:Browse…%> <input type="file" name="image">
+	</span>
+	</span>
+	<input class="form-control" name="image-name" readonly="" type="text">
+</div>
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="md5" data-hint="<%:Paste the MD5 checksum here to verify image file integrity.%>"><%:MD5 Checksum%></label>
+	<input class="form-control" name="md5" id="md5">
+</div>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="keep" value="1" checked>
+		<%:Keep Settings%>
+	</label>
+</div>
+
+<div class="prgs form-group hidden">
+	<div class="bar"></div>
+	<div class="percent">0%</div>
+</div>
+
+<div class="form-group pull-right">
+	<button type="submit" class="btn btn-primary"><%:Flash%></button>
+</div>
+<% else %>
+<p class="help-block">
+<%:Sorry, there is no sysupgrade support present, a new firmware image must be flashed manually. Please refer to the OpenWrt wiki for device specific install instructions.%>
+</p>
+<% end %>
+</form>
+</div>
+</fieldset>
+</div>
+
+</div>
+
+<div class="modal" id="password-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="change-password" action="<%=build_url(section..'/system/change_password')%>" method="POST">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Change Password%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label class="control-label required" for="password"><%:Current Password%></label> 
+					<input class="form-control" id="password" name="password" type="password" autocomplete="off">
+				</div>
+				<div class="form-group">
+					<label class="control-label required" for="password1"><%:New Password%></label> 
+					<input class="form-control" id="password1" name="password1" type="password" autocomplete="off">
+				</div>
+				<div class="form-group">
+					<label class="control-label required" for="password2"><%:Confirm New Password%></label> 
+					<input class="form-control" id="password2" name="password2" type="password" autocomplete="off">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Save%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="restore-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="restore" action="<%=build_url(section..'/system/restore')%>" method="POST" enctype="multipart/form-data">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Restore Settings%></h4>
+			</div>
+			<div class="modal-body">
+				<p><%:Click "Browse..." to select the configuration backup file to restore, then click "Restore".%></p>
+				<div class="form-group">
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="archive">
+					</span>
+					</span>
+					<input class="form-control" name="archive-name" readonly="" type="text">
+				</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Restore%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="flash-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="upgrade" action="<%=build_url(section..'/system/upgrade')%>" data-cancel="<%=build_url(section..'/system/cancel_upgrade')%>" method="POST">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Flash Firmware%></h4>
+			</div>
+			<input type="hidden" name="keep" value="1">
+			<div class="modal-body">
+				<p id="flash-message-ok" class="hidden"><%:The flash image has been uploaded. Click "Proceed" below to start the flash procedure.%></p>
+				<p id="flash-message-unsupported" class="hidden"><%:The uploaded image file does not contain a supported format. Make sure that you choose the right image file.%></p>
+				<p id="flash-message-nospace" class="hidden"><%:It appears that you try to flash an image that does not fit into the flash memory, please verify the image file!%></p>
+				<p id="flash-message-md5fail" class="hidden"><%:Uploaded image file failed MD5 checksum verification. Please verify image file and try again.%></p>
+				<p id="flash-message-md5unchecked" class="hidden"><%:Warning: image file MD5 checksum is not verified. It is highly recommended that you enter the MD5 checksum while uploading the image file.%></p>
+				<p id="flash-message-md5ok" class="hidden"><%:Image file MD5 checksum verification passed.%></p>
+				<p id="flash-message-keep" class="hidden"><%:Configuration files will be kept.%></p>
+				<p id="flash-message-erase" class="hidden"><%:Configuration files will be erased.%></p>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default"><%:Cancel%></button>
+				<button type="submit" class="btn btn-primary"><%:Proceed%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	reset_settings_title: '<%:Restore Factory Configuration%>',
+	reset_settings_message: '<%:You are about to restore factory default settings. All customized settings will be wiped out. Continue?%>',
+	resetting: '<%:The system is restoring factory default settings and will reboot itself when finished. It might be necessary to disconnect and reconnect your computer to the router.%>',
+	restoring: '<%:The system is restoring backup settings and will reboot itself when finished. It might be necessary to disconnect and reconnect your computer to the router.%>',
+	check_update: '<%:Checking for update%>',
+	failed_download: '<%:Failed to download new firmware, please try again later.%>',
+	select_image: '<%:Please select the image file to upload.%>',
+	select_archive: '<%:Please select the archive file to upload.%>',
+    updating: [
+               '<%:DO NOT POWER OFF THE DEVICE!%>',
+			   '<%:Wait a few minutes before you try to reconnect. It might be necessary to disconnect and reconnect your computer to the router.%>',
+               '<%:The system is flashing%>'
+    ],
+	need_email_password_reset: 'You need to turn off the "Override router Reset button" option first before you can turn off this option.'
+};
+</script>
+
+<%+'_footer'%>

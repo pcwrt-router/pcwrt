@@ -1,0 +1,366 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+<style type="text/css">
+#server .table tbody tr:first-child th, #client .table tbody tr:first-child th {
+	border-top: none;
+}
+span.resume {
+	font-size: 16px; color: #77a2d1; cursor: pointer;
+}
+span.list-remove,span.list-edit,span.resume {
+	margin: 2px;
+}
+</style>
+<div class="container settings-header">
+<h3><%:OpenVPN%></h3>
+</div>
+
+<div class="container vpn">
+<ul class="nav nav-tabs" role="tablist">
+	<li class="active" role="presentation">
+		<a href="#client" aria-controls="OpenVPN Client" role="tab" data-toggle="tab" aria-expanded="true"><%:Client%></a>
+	</li>
+	<li role="presentation">
+		<a href="#server" aria-controls="OpenVPN Server" role="tab" data-toggle="tab" aria-expanded="false"><%:Server%></a>
+	</li>
+</ul>
+<div class="tab-content">
+<div id="client" class="tab-pane fade active in" role="tabpanel">
+<form id="vpn-clients" action="<%=build_url(section..'/vpn/update_client')%>" method="POST">
+<fieldset>
+<div class="col-md-4 offset-5pct">
+<legend><%:Enable for Network%></legend>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="network" value="lan"> <%:LAN%>
+	</label>
+</div>
+</div>
+<div class="col-md-6 offset-5pct">
+<legend><%:Configurations%></legend>
+<table id="vpn-configs" class="table">
+	<tr><th><%:Name%></th><th class="text-center"><%:Auto-start%></th></tr>
+	<tr><td colspan="2"><div class="form-group pull-right">
+	<button id="add-vpn-config" class="btn btn-default pull-right"><%:Add%></button>
+	</div></td></tr>
+</table>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</fieldset>
+</form>
+</div> <%# client tab -%>
+<div id="server" class="tab-pane fade" role="tabpanel">
+<% if init_status ~= nil then %>
+<% if init_status ~= 'in_progress' then %>
+<form id="vpn-init" action="<%=build_url(section..'/vpn/init')%>" method="POST">
+<div id="init-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info">
+<%:OpenVPN Server not initialized. Please click the Initialize button to initialize OpenVPN.%>
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Initialize OpenVPN%></button>
+</div>
+</form>
+<% end %>
+<div id="prog-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info <%=hide_prog_alert%>">
+<%:OpenVPN Server initialization in progress. This may take up to several hours.
+Please keep the router powered on and check back later.%>
+</div>
+<% else %>
+<div id="main-form">
+<form id="vpn-update" action="<%=build_url(section..'/vpn/update')%>" method="POST">
+<div id="enable-disable" class="col-md-10 col-md-offset-1 alert-16px alert">
+<%:OpenVPN Server is%> <span id="vpn-status"></span>. 
+	<button id="enable-vpn" class="btn btn-default btn-sm hidden pull-right"><%:Enable%></button>
+	<button id="disable-vpn" class="btn btn-default btn-sm hidden pull-right"><%:Disable%></button>
+	<button id="restart-vpn" class="btn btn-default btn-sm hidden pull-right" style="margin-right:4px;"><%:Restart%></button>
+</div>
+<div id="enable-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info hidden">
+<%:Please check the settings below and click Save to enable OpenVPN Server.%>
+</div>
+
+<div class="clearfix"></div>
+
+<div id="vpn-settings" style="display:none;">
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Server Settings%></legend>
+<div class="form-group">
+	<label class="control-label" for="extaddr"><%:External Address%></label> 
+	<input class="form-control" name="extaddr" id="extaddr">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="port"><%:Port%></label> 
+	<input class="form-control" name="port" id="port">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="ipaddr"><%:IP Address%></label> 
+	<input class="form-control" name="ipaddr" id="ipaddr">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="netmask"><%:Netmask%></label> 
+	<input class="form-control" name="netmask" id="netmask">
+</div>
+
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="scramble" value="1" id="scramble"> <%:Scramble%>
+	</label>
+</div>
+
+<div class="form-group" style="display:none">
+	<label class="control-label" for="scrampass"><%:Scramble Password%></label> 
+	<input class="form-control" name="scrampass" id="scrampass">
+</div>
+
+<div class="form-group">
+	<a class="btn btn-default margin-bottom-10" href="<%=build_url(section..'/vpn/download')%>"><%:Download OpenVPN Client Config File%></a>
+</div>
+</fieldset>
+</div>
+
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Users%></legend>
+<div class="form-group">
+	<table id="users" class="table">
+		<tr><th><%:Name%></th><th style="width:1%"><%:Internet%></th><th class="text-center"><%:Guest%></th></tr>
+		<tr><td colspan="3"><div class="form-group pull-right">
+		<button id="add-user" class="btn btn-default pull-right"><%:Add%></button>
+		</div></td></tr>
+	</table>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button id="reinit-vpn" type="button" class="btn btn-default"><%:Reinitialize OpenVPN%></button>
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</div> <!-- vpn-settings -->
+
+</form>
+</div> <%# main-form -%>
+<div id="prog-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info hidden">
+<%:OpenVPN Server initialization in progress. This may take up to several hours.
+Please keep the router powered on and check back later.%>
+</div>
+<% end %>
+</div> <%# server tab -%>
+</div> <%# tab content -%>
+</div> <%# container -%>
+
+<form id="connect-vpn" data-state_url="<%=build_url(section..'/vpn/vpn_state')%>" action="<%=build_url(section..'/vpn/connect')%>" method="POST">
+	<input type="hidden" name="action">
+	<input type="hidden" name="cfg">
+</form>
+<form id="get-clientlog" action="<%=build_url(section..'/vpn/client_logs')%>" method="GET"></form>
+<form id="restart-server" action="<%=build_url(section..'/vpn/restart_server')%>" method="POST"></form>
+<form id="vpn-init" action="<%=build_url(section..'/vpn/init')%>" method="POST"></form>
+
+<div class="modal" id="user-dialog" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:OpenVPN User%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label for="username" class="control-label"><%:User Name%></label>
+					<input class="form-control" name="username" id="username">
+				</div>
+				<div class="form-group">
+					<label for="password" class="control-label"><%:Password%></label>
+					<input type="password" class="form-control" name="password" id="password">
+				</div>
+				<div class="form-group">
+					<label class="control-label block-label"><%:Internet Connection%></label>
+					<p class="help-block">
+					<%:If you choose VPN, the router will use an outbound VPN connection for the
+					Internet when the user connects. If there is no outbound VPN connection from
+					the router, Internet access will be blocked.%>
+					</p>
+					<label class="radio-inline">
+						<input type="radio" name="vpnout" value="0" checked><%:ISP%>
+					</label>
+					<label class="radio-inline">
+						<input type="radio" name="vpnout" value="1"><%:VPN%>
+					</label>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="client-modal" data-cfgurl="<%=build_url(section..'/vpn/get_config')%>" data-ovpnurl="<%=build_url(section..'/vpn/get_ovpn')%>">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="add-config" action="<%=build_url(section..'/vpn/add_config')%>" method="POST" enctype="multipart/form-data">
+			<input type="hidden" id="oldname" name="oldname">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add VPN Configuration%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label class="control-label" for="cfgname"><%:Configuration Name%></label>
+					<input class="form-control" id="cfgname" name="cfgname">
+				</div>
+				<p id="new-cfg-msg"><%:Click "Browse..." to select the OpenVPN client configuration file to upload.%></p>
+				<p id="update-cfg-msg" style="display:none"><%:Click "Browse..." to upload a new configuration file.%> <%:Click%> <a data-url="<%=build_url(section..'/vpn/view_ovpn')%>" href="#" target="_blank"><%:here%></a> <%:to view current OpenVPN configuration.%> <%:You can leave this field empty if you want to keep the current configuration file.%></p>
+				<div class="form-group">
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="ovpn">
+					</span>
+					</span>
+					<input class="form-control" name="ovpn-name" readonly="" type="text">
+				</div>
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="cfguser"><%:User Name%></label>
+					<input class="form-control" id="cfguser" name="cfguser">
+				</div>
+				<div class="form-group">
+					<label class="control-label" for="cfgpass"><%:Password%></label>
+					<input class="form-control" id="cfgpass" name="cfgpass">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Submit%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="cert-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="add-certs" action="<%=build_url(section..'/vpn/add_certs')%>" method="POST" enctype="multipart/form-data">
+			<input type="hidden" name="cfgname">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add VPN Certificates%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group" id="cacert-group">
+				<label class="control-label" for="cacert"><%:CA Certificate%></label>
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="cacert">
+					</span>
+					</span>
+					<input id="cacert" class="form-control" name="cacert-name" readonly="" type="text">
+				</div>
+				</div>
+				<div class="form-group" id="clicert-group">
+				<label class="control-label" for="clicert"><%:Client Certificate%></label>
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="clicert">
+					</span>
+					</span>
+					<input id="clicert" class="form-control" name="clicert-name" readonly="" type="text">
+				</div>
+				</div>
+				<div class="form-group" id="clikey-group">
+				<label class="control-label" for="clikey"><%:Client Key%></label>
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="clikey">
+					</span>
+					</span>
+					<input id="clikey" class="form-control" name="clikey-name" readonly="" type="text">
+				</div>
+				</div>
+				<div class="form-group" id="tlscert-group">
+				<label class="control-label" for="tlscert"><%:TLS Auth Certificate%></label>
+				<div class="input-group">
+					<span class="input-group-btn">
+					<span class="btn btn-default btn-file">
+					<%:Browse…%> <input type="file" name="tlscert">
+					</span>
+					</span>
+					<input id="tlscert" class="form-control" name="tlscert-name" readonly="" type="text">
+				</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Submit%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="logs-modal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:OpenVPN Client Log%></h4>
+			</div>
+			<div class="modal-body">
+				<p><code id="client-logs"></code></p>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-success" data-dismiss="modal"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	delete_user_title: '<%:Delete User%>',
+	enter_valid_user_name: '<%:Please enter a valid username%>',
+	user_name_exists: '<%:Username already exists%>',
+	enter_password: '<%:Please enter password%>',
+	delete_user_confirm: '<%:Are you sure you want to delete the user%>',
+	add_vpn_title: '<%:Add VPN Configuration%>',
+	edit_vpn_title: '<%:Edit VPN Configuration%>',
+	reinit_vpn_title: '<%:Reinitialize OpenVPN%>',
+	reinit_vpn_confirm: '<%:This action will delete your current OpenVPN keys and regenerate them. Are you sure you want to continue?%>',
+	delete_vpn_config_title: '<%:Delete VPN Configuration%>',
+	delete_vpn_config_confirm: '<%:Are you sure you want to delete the configuration%>',
+	duplicate_config: '<%:Configuration name already used%>',
+	empty_config: '<%:Please enter a name for the configuration%>',
+	start_vpnconf: '<%:Starting VPN connection%>',
+	stop_vpnconf: '<%:Stopping VPN connection%>',
+	select_cacert_file: '<%:Please upload the CA certificate file%>',
+	select_clicert_file: '<%:Please upload the client certificate file%>',
+	select_clikey_file: '<%:Please upload the client key file%>',
+	select_tlscert_file: '<%:Please upload the TLS Auth certificate file%>',
+	uncommitted_title: '<%:Unsaved Changes%>',
+	uncommitted_changes: '<%:There are unsaved changes. Please click the Save button to save your changes.%>',
+	restart_vpn_title: '<%:Restart OpenVPN Server%>',
+	restart_vpn_message: '<%:OpenVPN server successfully restarted.%>',
+	isp: '<%:ISP%>',
+	vpn: '<%:VPN%>'
+};
+</script>
+<%+'_footer'%>

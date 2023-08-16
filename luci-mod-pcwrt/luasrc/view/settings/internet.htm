@@ -1,0 +1,32 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+	
+<div class="container settings-header">
+<h3><%:Internet Settings%></h3>
+<span class="required-mark" title="<%:Required mark%>"></span> <%:indicates required field.%>
+</div>
+
+<div class="container narrow-form">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<div class="form-group">
+<label class="control-label" for="protosel" data-hint="<%:In doubt, check with your Internet Service Provider (ISP).%>"><%:Protocol%></label>
+<div><select id="protosel" name="proto" class="form-control">
+<% for _, p in ipairs(protocols) do %>
+	<option value="<%=p:proto()%>"><%=pcdata(p:get_i18n())%></option>
+<% end %>
+</select></div>
+</div>
+</form>
+
+<% for _, p in ipairs(protocols) do proto_page='settings/internet/_'..p:proto() %>
+	<%+proto_page%>
+<% end %>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	random_mac_warn_title: '<%:Refresh Interval Warning%>',
+	random_mac_warn_msg: '<%:Your random MAC address refresh interval may be too small. Please note that every time a new MAC address is used, the router network will restart. If the interval is set too small, your network connection might be interrupted when you meed it.%>'
+}
+</script>
+<%+'_footer'%>

@@ -1,0 +1,204 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+
+<div class="container settings-header">
+<h3><%:Wireless Settings%></h3>
+<span class="required-mark" title="<%:Required mark%>"></span> <%:indicates required field.%>
+</div>
+
+<div class="container" id="wireless-settings">
+<form id="wireless-update" action="<%=build_url(section..'/wireless/update')%>" method="POST">
+
+<div class="clearfix"></div>
+
+<ul class="nav nav-tabs" role="tablist" style="display:none">
+<li role="presentation" class="active"><a href="#" aria-controls="" role="tab" data-toggle="tab"></a></li>
+</ul>
+
+<div class="tab-content">
+<div role="tabpanel" class="tab-pane fade in active">
+<div class="col-md-10 col-md-offset-1 alert-16px alert enable-disable">
+<%:Wireless network is%> <span class="wireless-status"></span>. 
+       <button class="btn btn-default btn-sm hidden pull-right enable-wireless"><%:Enable%></button>
+       <div class="hidden pull-right wifi-control-buttons">
+       <button class="btn btn-default btn-sm disable-wireless"><%:Disable%></button>
+       </div>
+</div>
+<div class="col-md-10 col-md-offset-1 alert-16px alert alert-info hidden enable-alert">
+<%:Please check the settings below and click Save to enable wireless network.%>
+</div>
+
+<div class="wireless-settings" style="display:none;">
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Device Configuration%></legend>
+<div class="form-group">
+	<label class="control-label" for="channel-1"><%:Channel%></label> 
+	<select class="form-control" name="channel" id="channel-1">
+	<option value="auto"><%:Auto%></option>
+	</select>
+</div>
+<div class="form-group">
+	<label class="control-label" for="bw-1"><%:Channel Width%></label> 
+	<select class="form-control" name="bw" id="bw-1">
+	</select>
+</div>
+<div class="form-group">
+	<label class="control-label" for="txpower-1"><%:Transmission Power%></label> 
+	<select class="form-control" id="txpower-1" name="txpower">
+	</select>
+</div>
+</fieldset>
+
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<fieldset>
+<legend><%:MAC Filter%></legend>
+<div class="checkbox onefilter" style="display:none">
+	<label>
+	<input type="checkbox" name="onefilter" value="1" checked>
+	<%:Use the same MAC filter for all bands%>
+	</label>
+</div>
+<div class="form-group">
+	<label class="control-label" for="macfilter-1"><%:MAC Address Filter%></label> 
+	<select name="macfilter" id="macfilter-1" class="form-control" data-editable="false">
+		<option value="disable"><%:Disabled%></option>
+		<option value="allow"><%:Allow listed MAC addresses only%></option>
+		<option value="deny"><%:Deny listed MAC addresses%></option>
+	</select>
+</div>
+
+<div class="form-group maclist-div">
+	<label class="control-label allow-macaddr hidden" for="macaddr-1" data-hint="<%:To add an entry, enter the MAC address then press the plus sign. To delete an entry, press the minus sign.%>"><%:Allow MAC Addresses%></label> 
+	<label class="control-label deny-macaddr hidden" for="macaddr-1" data-hint="<%:To add an entry, enter the MAC address then press the plus sign. To delete an entry, press the minus sign.%>"><%:Deny MAC Addresses%></label> 
+	<ul class="maclist-ul"></ul>
+	<div class="input-group">
+		<input class="form-control" id="macaddr-1" name="macaddr" placeholder="<%:MAC Address%>">
+		<span class="input-group-addon list-find">&nbsp;&nbsp;</span>
+		<span class="input-group-addon list-add">&nbsp;&nbsp;</span>
+	</div>
+</div>
+</fieldset>
+</div>
+
+<div class="col-md-5 offset-5pct wifi-networks">
+<fieldset>
+<legend><%:WiFi Networks%></legend>
+<ul class="nav nav-tabs" role="tablist">
+<li role="presentation" class="active"><a href="#2.4GHz-lan" aria-controls="" role="tab" data-toggle="tab"><%:LAN%></a></li>
+<li class="add-wifi"><a href="#"><span class="list-add">&nbsp;&nbsp;</span></a></li>
+</ul>
+
+<div class="tab-content">
+<div role="tabpanel" class="tab-pane fade in active" id="2.4GHz-lan">
+<div class="checkbox">
+	<label>
+	<input type="checkbox" name="hidessid" value="1">
+	<%:Disable SSID broadcast%>
+	</label>
+</div>
+<div class="checkbox">
+       <label>
+       <input type="checkbox" name="isolate" value="1">
+       <%:Enable WiFi client isolation %>
+       </label>
+</div>
+<div class="form-group">
+	<label class="control-label required" for="ssid-1"><%:SSID%></label>
+	<input class="form-control" id="ssid-1" name="ssid">
+</div>
+<div class="form-group">
+	<label class="control-label" for="encryption-1"><%:Encryption%></label>
+	<select class="form-control" name="encryption" id="encryption-1">
+	</select>
+</div>
+<div class="form-group cipher-div">
+	<label class="control-label" for="cipher-1"><%:Cipher%></label> 
+	<select class="form-control" id="cipher-1" name="cipher">
+	</select>
+</div>
+<div class="form-group key-div">
+	<label class="control-label required" for="key-1"><%:WiFi Password%></label>
+	<input class="form-control reveal" id="key-1" name="key" type="password">
+</div>
+</div> <%# tab-pane -%>
+</div><%# tab-content -%>
+</fieldset>
+</div>
+
+<div class="col-md-5 offset-5pct">
+
+</div>
+</div> <!-- wireless-settings -->
+
+</div> <!-- tabpanel -->
+</div> <!-- tab-content -->
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success" style="display:none"><%:Save%></button>
+</div>
+
+</form>
+</div>
+
+<form id="get-assocmacs" action="<%=build_url(section..'/wireless/assocmacs')%>" method="GET"></form>
+<div class="modal" id="maclist-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add MAC Addresses%></h4>
+			</div>
+			<div class="modal-body">
+				<table id="maclist-tbl">
+				<tr style="border-bottom: 1px #ddd solid;">
+					<th><input id="checkall" type="checkbox"></th>
+					<th><%:MAC Address%></th>
+					<th><%:Hostname%></th>
+				</tr>
+				</table>
+				<div id="maclist-empty">
+				<%:Nothing to add. All connected devices already added to list.%>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Add Selected%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="add-wifi-dialog" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add WiFi Network%></h4>
+			</div>
+			<div class="modal-body">
+				<p class="padding-bottom-10">
+					<span><%:Click the network to add WiFi connection to.%></span>
+				</p>
+				<ul class="list-group"></ul>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	invalid_mac_addr: '<%:Invalid MAC address%>',
+	mac_addr_already_added: '<%:MAC address already added%>',
+	delete_wifi_title: '<%:Delete WiFi Network%>',
+	delete_wifi_confirm: '<%:Are you sure you want to delete WiFi network%>'
+}
+</script>
+<%+'_footer'%>

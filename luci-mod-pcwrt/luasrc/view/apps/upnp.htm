@@ -1,0 +1,86 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+	
+<div class="container settings-header">
+<h3><%:UPnP Settings%></h3>
+</div>
+
+<div class="container">
+<form id="upnp-update" action="<%=build_url(section..'/upnp/update')%>" method="POST">
+<div id="enable-disable" class="col-md-10 col-md-offset-1 alert-16px alert">
+<%:UPnP is%> <span id="upnp-status"></span>. 
+	<button id="enable-upnp" class="btn btn-default btn-sm hidden pull-right"><%:Enable%></button>
+	<button id="disable-upnp" class="btn btn-default btn-sm hidden pull-right"><%:Disable%></button>
+</div>
+<div id="enable-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info hidden">
+<%:Please check the settings below and click Save to enable UPnP.%>
+</div>
+
+<div class="clearfix"></div>
+
+<div id="upnp-settings" style="display:none;">
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Enable for Network%></legend>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="network" value="lan">
+		<%:LAN%>
+	</label>
+</div>
+</fieldset>
+
+<fieldset>
+<legend><%:Configuration%></legend>
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="enable_natpmp" value="1">
+		<%:Enable NAT-PMP%>
+	</label>
+</div>
+
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="enable_upnp" value="1">
+		<%:Enable UPnP%>
+	</label>
+</div>
+
+<div class="checkbox">
+	<label>
+		<input type="checkbox" name="secure_mode" value="1">
+		<%:Enable Secure Mode%>
+	</label>
+</div>
+</fieldset>
+</div>
+
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Rules%></legend>
+<div class="form-group">
+	<label class="control-label" for="ext_ports"><%:Allowed External Ports%></label> 
+	<input class="form-control" name="ext_ports" id="ext_ports">
+</div>
+<div class="form-group">
+	<label class="control-label" for="int_addr"><%:Allowed Internal Addresses%></label> 
+	<input class="form-control" id="int_addr" name="int_addr">
+</div>
+<div class="form-group">
+	<label class="control-label" for="int_ports"><%:Allowed Internal Ports%></label> 
+	<input class="form-control" id="int_ports" name="int_ports">
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</div> <!-- upnp-settings -->
+
+</form>
+</div>
+<%+'_footer'%>

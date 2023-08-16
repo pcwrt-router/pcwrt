@@ -1,0 +1,6 @@
+repo:  https://github.com/openwrt/openwrt.git
+branch: openwrt-21.02
+revision: 170d9e4
+
+patch_folders:
+  - patches/base

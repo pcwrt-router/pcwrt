@@ -1,0 +1,38 @@
+<div id="proto-dhcp" class="proto-option hidden">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<input type="hidden" name="proto" value="dhcp">
+<div class="form-group">
+	<label class="control-label" for="dhcp-hostname" data-hint="<%:Optional hostname to include in DHCP requests%>"><%:Hostname%></label>
+	<input class="form-control" type="text" id="dhcp-hostname" name="hostname">
+</div>
+<div class="form-group">
+	<input type="checkbox" id="dhcp-broadcast-flag" name="broadcast" value="1">
+	<label class="control-label" for="dhcp-broadcast-flag" data-hint="<%:Enable the broadcast flag in DHCP requests, required for certain ISPs, e.g. Charter with DOCSIS 3%>"><%:Use broadcast flag%></label>
+</div>
+<div class="form-group">
+	<input type="checkbox" id="dhcp-peerdns" name="peerdns" value="0">
+	<label class="control-label" for="dhcp-peerdns" data-hint="<%:Check this box to override DNS servers provided by your Internet Service Provider (ISP)%>"><%:Use custom DNS servers%></label>
+</div>
+<div>
+<div class="form-group">
+	<label class="control-label required" for="dhcp-dns1" data-hint="<%:IP address of the DNS server%>"><%:DNS server%></label>
+	<input class="form-control" type="text" id="dhcp-dns1" name="dns1">
+</div>
+<div class="form-group">
+	<label class="control-label" for="dhcp-dns2" data-hint="<%:IP address of the alternative DNS server%>"><%:Alternative DNS server%></label>
+	<input class="form-control" type="text" id="dhcp-dns2" name="dns2">
+</div>
+</div>
+<div class="form-group">
+	<label class="control-label" for="dhcp-macaddr" data-hint="<%:You may want to override the MAC address if your ISP binds the service to a specific MAC address.%>"><%:Override MAC address%></label>
+	<input class="form-control" type="text" id="dhcp-macaddr" name="macaddr">
+</div>
+<div class="form-group">
+	<label class="control-label" for="dhcp-mtu" data-hint="<%:Override the size of the maximum transmission unit (MTU).%>"><%:Override MTU%></label>
+	<input class="form-control" type="text" id="dhcp-mtu" name="mtu">
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+</div>

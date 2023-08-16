@@ -1,0 +1,1285 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid ""
+"A profile defines content filtering rules and access times. Assign devices "
+"and users to a profile to set restrictions. The default profile defines "
+"rules and access times for any user or device not specifically assigned to a "
+"profile. Click \"New Profile\" to create a new profile."
+msgstr "配置文件定义的内容过滤规则和访问时间。一个配置文件设定的限制，指定设备和用户。默认的配置文件定义不明确分配到配置文件的任何用户或设备的规则和访问时间。点击\"新的配置文件\"来创建一个新的配置文件。"
+
+msgid ""
+"Check this box to override DNS servers provided by your Internet Service "
+"Provider (ISP)"
+msgstr "选中此复选框以覆盖由您的Internet服务提供商提供的DNS服务器"
+
+msgid ""
+"Click \"Browse...\" to select the configuration backup file to restore, then "
+"click \"Restore\"."
+msgstr "点击\"浏览...\"选择备份文件,然后点击\"恢复\"."
+
+msgid ""
+"Click \"Browse\" to select new firmware image, then click \"Flash\". Check "
+"\"Keep settings\" to retain the current configuration."
+msgstr "点击\"浏览\"选择固件镜像文件,然后点击\"更新\". 选择\"保留设置\"保留当前设置."
+
+msgid ""
+"Click the Add button to add a friendly name and fixed IP address to a "
+"network device. Click the \"minus\" icon on a row to remove the hostname and "
+"fixed IP address."
+msgstr "点击\"添加\"键给网络设备指定名称及一个固定IP地址. 点击\"减号\"图标取消名称及固定IP地址."
+
+msgid ""
+"Enable the broadcast flag in DHCP requests, required for certain ISPs, e.g. "
+"Charter with DOCSIS 3"
+msgstr "启用广播标志的DHCP请求，某些互联网服务供应商要求."
+
+msgid ""
+"Encryption key must be a string between 8 and 63 characters, or a hex string "
+"of length 64"
+msgstr "加密密钥必须是8到63个字符的字符串，或长度为64的十六进制字符串"
+
+msgid ""
+"Failed to update Dynamic DNS, please check your username and password and "
+"try again."
+msgstr "无法更新动态DNS，请检查您的用户名和密码，再试一次。"
+
+msgid ""
+"Here you can paste public SSH-Keys (one per line) for SSH public-key "
+"authentication."
+msgstr "在这里，您可以粘贴SSH公钥（每行一个）。"
+
+msgid ""
+"It appears that you try to flash an image that does not fit into the flash "
+"memory, please verify the image file!"
+msgstr "看来，你尝试更新的镜像文件闪存装不下，请确认镜像文件！"
+
+msgid ""
+"Please check the settings below and click Save to enable wireless network."
+msgstr "请检查下面的设置，然后点击保存，使无线网络。"
+
+msgid ""
+"Port forwarding allows remote computers on the Internet to connect to a "
+"specific computer or service within the private LAN."
+msgstr "端口转发允许因特网上的远程计算机连接到一个私有局域网内的特定计算机或服务。"
+
+msgid ""
+"Sorry, there is no sysupgrade support present, a new firmware image must be "
+"flashed manually. Please refer to the OpenWrt wiki for device specific "
+"install instructions."
+msgstr "对不起，目前没有sysupgrade支持，新的固件映像必须是手动更新。请参阅OpenWrt维基特定设备安装说明。"
+
+msgid ""
+"The flash image has been uploaded. Click \"Proceed\" below to start the "
+"flash procedure."
+msgstr "闪存映像已被上传。点击\"继续\"开始升级固件."
+
+msgid ""
+"The system is restoring backup settings and will reboot itself when "
+"finished. It might be necessary to disconnect and reconnect your computer to "
+"the router."
+msgstr "该系统恢复备份设置，完成后会自动重启。它可能需要断开并重新连接你的电脑到路由器。"
+
+msgid ""
+"The system is restoring factory default settings and will reboot itself when "
+"finished. It might be necessary to disconnect and reconnect your computer to "
+"the router."
+msgstr "该系统恢复出厂默认设置，完成后会自动重启。它可能需要断开并重新连接你的电脑到路由器。"
+
+msgid ""
+"The uploaded image file does not contain a supported format. Make sure that "
+"you choose the right image file."
+msgstr "上传的图像文件不包含支持的格式。确保您选择正确的图像文件。"
+
+msgid ""
+"To add an entry, enter the MAC address then press the pluc sign. To delete "
+"an entry, press the minus sign."
+msgstr ""
+
+msgid ""
+"To add an entry, enter the MAC address then press the plus sign. To delete "
+"an entry, press the minus sign."
+msgstr "要添加一个条目，输入MAC地址然后按加标志。要删除一个条目，按“减”。"
+
+msgid ""
+"Uploaded image file failed MD5 checksum verification. Please verify image "
+"file and try again."
+msgstr "上传的图像文件的MD5校验和验证失败。请验证图像文件并重试。"
+
+msgid ""
+"Wait a few minutes until you try to reconnect. It might be necessary to "
+"disconnect and reconnect your computer to the router."
+msgstr "等待几分钟，直到你尝试重新连接。它可能是必要的，断开，重新连接到路由器的计算机。"
+
+msgid ""
+"Warning: image file MD5 checksum is not verified. It is highly recommended "
+"that you enter the MD5 checksum while uploading the image file."
+msgstr "警告：图像文件的MD5校验和未验证。这是强烈建议您输入MD5校验，同时上传图像文件。"
+
+msgid ""
+"You are about to restore factory default settings. All customized settings "
+"will be wiped out. Continue?"
+msgstr "您将恢复工厂默认设置。所有自定义设置将被清除。继续？"
+
+msgid ""
+"You may want to override the MAC address if your ISP binds the service to a "
+"specific MAC address."
+msgstr "你如果您的ISP绑定MAC地址的服务，具体要重写MAC地址。"
+
+msgid "Add Device"
+msgstr "添加设备"
+
+msgid "Add Host Name"
+msgstr "添加主机名"
+
+msgid "Add MAC Addresses"
+msgstr "添加MAC地址"
+
+msgid "Add Port Forward"
+msgstr "添加端口转发"
+
+msgid "Add Selected"
+msgstr "添加选定"
+
+msgid "Add Static Route"
+msgstr "添加静态路由"
+
+msgid "Add User"
+msgstr "添加用户"
+
+msgid "Add"
+msgstr "添加"
+
+msgid "Address:"
+msgstr "地址:"
+
+msgid "Administration"
+msgstr "管理"
+
+msgid "Allow MAC Addresses"
+msgstr "允许的MAC地址"
+
+msgid "Allow SSH login with password"
+msgstr "允许SSH密码登录"
+
+msgid "Allow listed MAC addresses only"
+msgstr "只允许列出的MAC地址"
+
+msgid "Allowed External Ports"
+msgstr "允许的外部端口"
+
+msgid "Allowed Internal Addresses"
+msgstr "允许的内部地址"
+
+msgid "Allowed Internal Ports"
+msgstr "允许的内部端口"
+
+msgid "Allowed URLs"
+msgstr "允许的URL"
+
+msgid "Alternative DNS server address is invalid"
+msgstr ""
+
+msgid "Alternative DNS server"
+msgstr "备用DNS服务器"
+
+msgid "Applying changes"
+msgstr "正在更改"
+
+msgid "Auto"
+msgstr "自动"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Backup"
+msgstr "备份"
+
+msgid "Backup/Restore Settings"
+msgstr "备份/恢复设置"
+
+msgid "Black List"
+msgstr "黑名单"
+
+msgid "Block literal IP addresses"
+msgstr "阻止纯IP地址"
+
+msgid "Block proxy, VPN, TOR"
+msgstr "阻止proxy, VPN, TOR"
+
+msgid "Blocked URLs"
+msgstr "被拦截的URL"
+
+msgid "Browse…"
+msgstr "浏览..."
+
+msgid "CCMP (AES)"
+msgstr ""
+
+msgid "Calendars"
+msgstr "日历"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Change Hostname"
+msgstr "更改主机名"
+
+msgid "Change Messages"
+msgstr "更改信息"
+
+msgid "Change Password"
+msgstr "更改密码"
+
+msgid "Change Router Password"
+msgstr "更改路由器密码"
+
+msgid "Change"
+msgstr "更改"
+
+msgid "Changes successfully applied."
+msgstr "更改成功."
+
+msgid "Channel"
+msgstr "频道"
+
+msgid "Channel:"
+msgstr "频道:"
+
+msgid "Check Interval"
+msgstr "检查间隔"
+
+msgid "Choose from all timezones"
+msgstr "从所有时区选择"
+
+msgid "Choose from timezones with the same UTC offset as browser"
+msgstr "从与浏览器有相同UTC偏移的时区选择"
+
+msgid "Cipher"
+msgstr "暗号"
+
+msgid "Click \"Add\" to add a proxy user."
+msgstr "点击\"添加\"添加代理用户."
+
+msgid "Click the Add button to add a static route."
+msgstr "点击\"添加\"键添加静态路由."
+
+msgid "Click the device name to add to the profile."
+msgstr "点击设备名把设备添加到配置."
+
+msgid "Click the user name to add to the profile."
+msgstr "点击用户名把用户添加到配置."
+
+msgid "Color"
+msgstr "颜色"
+
+msgid "Configuration files will be erased."
+msgstr "配置文件将被删除。"
+
+msgid "Configuration files will be kept."
+msgstr "配置文件将被保存。"
+
+msgid "Configuration"
+msgstr "配置"
+
+msgid "Confirm New Password"
+msgstr "确认新密码"
+
+msgid "Confirm Password does not match New Password"
+msgstr "确认密码与新密码不符"
+
+msgid "Confirm Password"
+msgstr "确认密码"
+
+msgid "Connected Devices"
+msgstr "已连接设备"
+
+msgid "Connected:"
+msgstr "已连接:"
+
+msgid "Continue"
+msgstr "继续"
+
+msgid "Current Password"
+msgstr "当前密码"
+
+msgid "Current Time"
+msgstr "当前时间"
+
+msgid "Custom Setting"
+msgstr "自定义设置"
+
+msgid "DHCP Lease Time"
+msgstr "DHCP租约时间"
+
+msgid "DHCP Limit"
+msgstr "DHCP限制"
+
+msgid "DHCP Start"
+msgstr "DHCP始值"
+
+msgid "DNS 1:"
+msgstr "DNS 1:"
+
+msgid "DNS 2:"
+msgstr "DNS 2:"
+
+msgid "DNS Servers"
+msgstr "DNS服务器"
+
+msgid "DNS server address is invalid"
+msgstr "DNS服务器地址不正确"
+
+msgid "DNS server"
+msgstr "DNS服务器"
+
+msgid "DO NOT POWER OFF THE DEVICE!"
+msgstr "请勿断电装置！"
+
+msgid "Default gateway for the Internet interface."
+msgstr "因特网接口的默认网关。"
+
+msgid "Default"
+msgstr "默认"
+
+msgid "Deny MAC Addresses"
+msgstr "拒绝MAC地址"
+
+msgid "Deny listed MAC addresses"
+msgstr "拒绝列出的MAC地址"
+
+msgid "Device Configuration"
+msgstr "设备配置"
+
+msgid "Devices"
+msgstr "设备"
+
+msgid "Disable"
+msgstr "关闭"
+
+msgid "Disabled"
+msgstr "已关闭"
+
+msgid "disabled"
+msgstr "已关闭"
+
+msgid "Duplicate MAC address"
+msgstr "MAC地址重复"
+
+msgid "Dynamic DNS"
+msgstr "动态 DNS"
+
+msgid "Edit Profile"
+msgstr "编辑配置"
+
+msgid "Enable NAT-PMP"
+msgstr "启用NAT-PMP"
+
+msgid "Enable Parental Control"
+msgstr "启用家长控制"
+
+msgid "Enable SSH"
+msgstr "启用SSH"
+
+msgid "Enable Secure Mode"
+msgstr "启用安全模式"
+
+msgid "Enable UPnP"
+msgstr "启用UPnP"
+
+msgid "Enable authenticating proxy server"
+msgstr "启用身份验证代理服务器"
+
+msgid "Enable local server"
+msgstr "启用本地服务器"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Encryption"
+msgstr "加密"
+
+msgid "Encryption:"
+msgstr "加密:"
+
+msgid "External Port"
+msgstr "外部端口"
+
+msgid "Failed to change hostname"
+msgstr "无法更改主机名"
+
+msgid "Failed to change password."
+msgstr "无法更改密码。"
+
+msgid "Failed to decode input"
+msgstr "无法解码输入"
+
+msgid "Failed to disable UPnP"
+msgstr "无法禁用的UPnP"
+
+msgid "Failed to disable parental control"
+msgstr "未能禁用家长控制"
+
+msgid "Failed to enable parental control"
+msgstr "未能启用家长控制"
+
+msgid "Failed to save changes"
+msgstr "无法保存更改"
+
+msgid "Failed to save configuration"
+msgstr "无法保存配置"
+
+msgid "Failed to update Dynamic DNS, please check your network connection."
+msgstr "无法更新动态DNS ，请检查您的网络连接。"
+
+msgid "Failed to update hostname"
+msgstr "无法更新主机名"
+
+msgid "Failed to upload file!"
+msgstr "无法上传文件！"
+
+msgid "Failed to upload image file."
+msgstr "无法上传镜像文件。"
+
+msgid "Finish"
+msgstr "完成"
+
+msgid "Flash Firmware"
+msgstr "更新固件"
+
+msgid "Flash New Firmware"
+msgstr "更新固件"
+
+msgid "Flash"
+msgstr "更新"
+
+msgid "Force Interval"
+msgstr "强迫更新间隔"
+
+msgid "Fri."
+msgstr "星期五"
+
+msgid "Gateway"
+msgstr "网关"
+
+msgid "Gateway:"
+msgstr "网关:"
+
+msgid "General"
+msgstr "普通"
+
+msgid "Google Public DNS"
+msgstr "谷歌公众DNS"
+
+msgid "Graphic"
+msgstr "图像"
+
+msgid "Hostname is in invalid format"
+msgstr "主机名是无效的格式"
+
+msgid "Hostname used by another device"
+msgstr "主机名已被其它设备使用"
+
+msgid "Hostname"
+msgstr "主机名"
+
+msgid "Hostnames and Static Leases"
+msgstr "主机名与静态租赁"
+
+msgid "Hosts"
+msgstr "主机"
+
+msgid "Hours"
+msgstr "小时"
+
+msgid "IP Address of the L2TP server"
+msgstr "L2TP服务器的IP地址"
+
+msgid "IP Address of the remote PPTP server"
+msgstr "远程PPTP服务器的IP地址"
+
+msgid "IP Address"
+msgstr "IP地址"
+
+msgid "IP address assigned by your Internet Service Provider (ISP)."
+msgstr "Internet服务提供商分配给您的IP地址。"
+
+msgid "IP address is invalid"
+msgstr "IP地址是无效的"
+
+msgid "IP address of the DNS server"
+msgstr "DNS服务器的IP地址"
+
+msgid "IP address of the alternative DNS server"
+msgstr "备用DNS服务器的IP地址"
+
+msgid "IP address used by another device"
+msgstr "另一个设备已经使用该IP地址"
+
+msgid "IP address"
+msgstr "IP地址"
+
+msgid "IP gateway is invalid"
+msgstr "IP网关是无效的"
+
+msgid "IP gateway"
+msgstr "IP网关"
+
+msgid "IP netmask is invalid"
+msgstr "IP网络掩码无效"
+
+msgid "IP netmask"
+msgstr "IP网络掩码"
+
+msgid "Image file MD5 checksum verification passed."
+msgstr "镜像文件的MD5校验和验证通过。"
+
+msgid "In doubt, check with your Internet Service Provider (ISP)."
+msgstr "若有疑问，请与您的Internet服务提供商。"
+
+msgid "Interface"
+msgstr "接口"
+
+msgid "Internal Address"
+msgstr "内部地址"
+
+msgid "Internal Port"
+msgstr "内部端口"
+
+msgid "Internet Settings"
+msgstr "因特网设置"
+
+msgid "Internet"
+msgstr "因特网"
+
+msgid "Invalid IP address"
+msgstr "IP地址错误"
+
+msgid "Invalid L2TP server address"
+msgstr "无效的L2TP服务器地址"
+
+msgid "Invalid MAC address"
+msgstr "MAC地址错误"
+
+msgid "Invalid NTP server entry"
+msgstr "NTP服务器设置错误"
+
+msgid "Invalid VCI value"
+msgstr "无效的VCI值"
+
+msgid "Invalid VPI value"
+msgstr "无效的VPI值"
+
+msgid "Invalid VPN server address"
+msgstr "无效的VPN服务器地址"
+
+msgid "Invalid channel"
+msgstr "频道错误"
+
+msgid "Invalid gateway"
+msgstr "网关错误"
+
+msgid "Invalid hostname"
+msgstr "主机名无效"
+
+msgid "Invalid input"
+msgstr "输入无效"
+
+msgid "Invalid metric"
+msgstr "跃点数无效"
+
+msgid "Invalid netmask"
+msgstr "子网掩码无效"
+
+msgid "Invalid password"
+msgstr "密码无效"
+
+msgid "Invalid port range"
+msgstr "端口范围无效"
+
+msgid "Invalid port"
+msgstr "端口无效"
+
+msgid "Invalid target"
+msgstr "对象无效"
+
+msgid "Invalid transmission power"
+msgstr "发送功率无效"
+
+msgid "Invalid value for PPPoA Encapsulation"
+msgstr "对于PPPoA的封装值无效"
+
+msgid "Invalid value for DHCP Lease Time"
+msgstr "DHCP租约时间值无效"
+
+msgid "Invalid value for DHCP Limit"
+msgstr "DHCP限制值无效"
+
+msgid "Invalid value for DHCP Start"
+msgstr "DHCP初始值无效"
+
+msgid "Keep Settings"
+msgstr "保留设置"
+
+msgid "Key"
+msgstr "密钥"
+
+msgid "L2TP server"
+msgstr "L2TP服务器"
+
+msgid "LAN"
+msgstr "LAN"
+
+msgid "Load Average:"
+msgstr "平均负载："
+
+msgid "Local Time:"
+msgstr "当地时间："
+
+msgid "Logout"
+msgstr "登出"
+
+msgid "MAC Address Filter"
+msgstr "MAC地址过滤"
+
+msgid "MAC Address"
+msgstr "MAC地址"
+
+msgid "MAC Filter"
+msgstr "MAC地址过滤"
+
+msgid "MAC address is invalid"
+msgstr "MAC地址无效"
+
+msgid "MD5 Checksum"
+msgstr "MD5校验"
+
+msgid "Messages"
+msgstr "信息"
+
+msgid "Metric"
+msgstr "跃点数"
+
+msgid "Minutes"
+msgstr "分"
+
+msgid "Mode:"
+msgstr "模式:"
+
+msgid "Modem device node."
+msgstr "猫节点。"
+
+msgid "Modem device"
+msgstr "网猫"
+
+msgid "Mon."
+msgstr "星期一"
+
+msgid "N/A"
+msgstr "N/A"
+
+msgid "NTP Server hostname"
+msgstr "NTP服务器主机名"
+
+msgid "NTP Servers"
+msgstr "NTP服务器"
+
+msgid "Name"
+msgstr "名字"
+
+msgid "Netmask"
+msgstr "子网掩码"
+
+msgid "Netmask:"
+msgstr "子网掩码:"
+
+msgid "Network Settings"
+msgstr "网络设置"
+
+msgid "Network mask for the Internet interface."
+msgstr "因特网接口网络掩码。"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "New Password"
+msgstr "新密码"
+
+msgid "New Profile"
+msgstr "新增配置"
+
+msgid "Next"
+msgstr "下一个"
+
+msgid "No Encryption"
+msgstr "无加密"
+
+msgid "No Permission"
+msgstr "没有权限"
+
+msgid "No"
+msgstr "否"
+
+msgid "Norton ConnectSafe - Security + Pornography + Other"
+msgstr ""
+
+msgid "Norton ConnectSafe - Security + Pornography"
+msgstr ""
+
+msgid "Norton ConnectSafe - Security"
+msgstr ""
+
+msgid "Nothing to add. All connected devices already added to list."
+msgstr "找不到设备, 所有已连接的设备已添加。"
+
+msgid "OK"
+msgstr ""
+
+msgid "Oops!"
+msgstr "哎呀!"
+
+msgid "OpenDNS Family Shield"
+msgstr ""
+
+msgid "OpenDNS Home"
+msgstr ""
+
+msgid "Optional hostname to include in DHCP requests"
+msgstr "DHCP请求内包括主机名"
+
+msgid "Override MAC address"
+msgstr "覆盖MAC地址"
+
+msgid "Override MTU"
+msgstr "覆盖MTU"
+
+msgid "Override the size of the maximum transmission unit (MTU)."
+msgstr "覆盖的最大传输单元（MTU）."
+
+msgid "PPPoA Encapsulation"
+msgstr "PPPoA封包"
+
+msgid "PPPoA Virtual Channel Identifier"
+msgstr "PPPoA虚拟通道标识符"
+
+msgid "PPPoA Virtual Path Identifier"
+msgstr "PPPoA虚拟路径标识"
+
+msgid "PPPoA encapsulation mode."
+msgstr "PPPoA封装模式。"
+
+msgid "Page Blocked"
+msgstr "页面被阻止"
+
+msgid "Parental Control"
+msgstr "家长控制"
+
+msgid "Parental control is"
+msgstr "家长控制"
+
+msgid "Password provided by your Internet Service Provider (ISP)"
+msgstr "您的互联网服务提供商提供的密码"
+
+msgid "Password successfully changed."
+msgstr "密码修改成功。"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Paste the MD5 checksum here to verify image file integrity."
+msgstr "在这里粘贴的MD5校验，以验证映像文件的完整性。"
+
+msgid "Please check the settings below and click Save to enable UPnP."
+msgstr "请检查下面的设置，然后点击保存到启用UPnP 。"
+
+msgid "Please click Save to enable parental control."
+msgstr "请点击保存启用家长控制。"
+
+msgid "Please enter DNS server address"
+msgstr "请输入DNS服务器地址"
+
+msgid "Please enter IP gateway"
+msgstr "请输入IP网关"
+
+msgid "Please enter IP netmask"
+msgstr "请输入IP网络掩码"
+
+msgid "Please enter Modem device"
+msgstr "请输入调制解调器设备"
+
+msgid "Please enter VPN server address"
+msgstr "请输入VPN服务器地址"
+
+msgid "Please enter a number not exceeding 9200"
+msgstr "请输入一个数字不超过9200"
+
+msgid "Please enter protocol"
+msgstr "请输入协议"
+
+msgid "Please enter the DNS server address"
+msgstr "请输入DNS服务器地址"
+
+msgid "Please enter the IP address"
+msgstr "请输入IP地址"
+
+msgid "Please enter the L2TP server address"
+msgstr "请输入L2TP服务器地址"
+
+msgid "Please enter the SSID"
+msgstr "请输入SSID"
+
+msgid "Please select the archive file to upload."
+msgstr "请选择要上传的档案文件。"
+
+msgid "Please select the image file to upload."
+msgstr "请选择要上传的映像文件。"
+
+msgid "Port Forwards"
+msgstr "端口转发"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Proceed"
+msgstr "继续"
+
+msgid "Proceed?"
+msgstr "继续?"
+
+msgid "Profile Name"
+msgstr "配置名"
+
+msgid "Profile"
+msgstr "配置"
+
+msgid "Profiles"
+msgstr "配置"
+
+msgid "Protocol"
+msgstr "协议"
+
+msgid "Proxy Server"
+msgstr "代理服务器"
+
+msgid "Proxy User"
+msgstr "代理用户"
+
+msgid "Reboot Router"
+msgstr "重启路由器"
+
+msgid "Reboot"
+msgstr "重启"
+
+msgid "Rebooting router"
+msgstr "正在重启路由器"
+
+msgid "Refresh connected devices"
+msgstr "刷新连接的设备"
+
+msgid "Refreshing connected devices"
+msgstr "正在刷新连接的设备"
+
+msgid "Required field"
+msgstr "必填项目"
+
+msgid "Required mark"
+msgstr "必填项目标志"
+
+msgid "Restore Backup"
+msgstr "恢复备份"
+
+msgid "Restore Factory Configuration"
+msgstr "恢复出厂配置"
+
+msgid "Restore Factory Default"
+msgstr "恢复出厂设置"
+
+msgid "Restore Settings"
+msgstr "恢复设置"
+
+msgid "Restore"
+msgstr "恢复"
+
+msgid "Rules"
+msgstr "规则"
+
+msgid "SSH Keys"
+msgstr "SSH密钥"
+
+msgid "SSID"
+msgstr ""
+
+msgid "SSID:"
+msgstr ""
+
+msgid "Safe search"
+msgstr "安全搜索"
+
+msgid "Sat."
+msgstr "星期六"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Set Router Password"
+msgstr "设置路由器密码"
+
+msgid "Set Timezone"
+msgstr "设置时区"
+
+msgid "Set Wifi SSID & Password"
+msgstr "设置无线SSID和密码"
+
+msgid "Router Password"
+msgstr "路由器密码"
+
+msgid "Timezone"
+msgstr "时区"
+
+msgid "Wifi SSID & Password"
+msgstr "无线SSID和密码"
+
+msgid "Email"
+msgstr "电邮"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Sign in"
+msgstr "登入"
+
+msgid "Site Closed"
+msgstr "网站关闭"
+
+msgid "Site Closed:"
+msgstr "网站关闭:"
+
+msgid "Site Not Available"
+msgstr "网站不提供"
+
+msgid "Sites"
+msgstr "网站"
+
+msgid "Something weird happened!"
+msgstr "奇怪的事情发生了！"
+
+msgid "Sorry, the requested site is not available at this time."
+msgstr "很抱歉，请求的网站在这个时间不提供。"
+
+msgid "Static Routes"
+msgstr "静态路由"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Status:"
+msgstr "状态:"
+
+msgid "Success"
+msgstr "成功"
+
+msgid "Sun."
+msgstr "星期天"
+
+msgid "Sync Time with Browser"
+msgstr "与浏览器同步时间"
+
+msgid "System Default"
+msgstr "系统默认"
+
+msgid "System Settings"
+msgstr "系统设置"
+
+msgid "System"
+msgstr "系统"
+
+msgid "TKIP and CCMP (AES)"
+msgstr "TKIP和CCMP (AES)"
+
+msgid "TKIP"
+msgstr ""
+
+msgid "Target"
+msgstr "对象"
+
+msgid "Text"
+msgstr "文本"
+
+msgid "The requested URL is blocked on this network."
+msgstr "所请求的URL在本网络被阻止。"
+
+msgid "The system is flashing"
+msgstr "系统正在升级"
+
+msgid "There are no devices to add."
+msgstr "找不到可添加设备。"
+
+msgid "There are no users to add."
+msgstr "找不到可添加用户。"
+
+msgid "Thu."
+msgstr "星期四"
+
+msgid "Time Allocation"
+msgstr "时间分配"
+
+msgid "Timezone"
+msgstr "时区"
+
+msgid "Transmission Power"
+msgstr "发射功率"
+
+msgid "Tue."
+msgstr "星期二"
+
+msgid "Type:"
+msgstr "类型:"
+
+msgid "UPnP Settings"
+msgstr "UPnP设置"
+
+msgid "UPnP is"
+msgstr "UPnP"
+
+msgid "UPnP"
+msgstr ""
+
+msgid "URL Blocked"
+msgstr "URL被禁"
+
+msgid "URL Blocked:"
+msgstr "URL被禁:"
+
+msgid "URL Filter Mode"
+msgstr "URL过滤模式"
+
+msgid "Unrecognized service name"
+msgstr "无法识别的服务名称"
+
+msgid "Upgrade image file corrupted."
+msgstr "升级映像文件损坏。"
+
+msgid "Uptime:"
+msgstr "运行时间:"
+
+msgid "Use 'pcwrt' as password to sign in."
+msgstr "使用“pcwrt”作为密码进行登录。"
+
+msgid "Use broadcast flag"
+msgstr "使用广播标志"
+
+msgid "Use custom DNS servers"
+msgstr "使用自定义DNS服务器"
+
+msgid "User Name"
+msgstr "用户名"
+
+msgid "User name provided by your Internet Service Provider (ISP)"
+msgstr "您的互联网服务提供商提供的用户名"
+
+msgid "User name provided by your Internet Service Provider (ISP)."
+msgstr "您的互联网服务提供商提供的用户名"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Users"
+msgstr "用户"
+
+msgid "VC-Mux"
+msgstr ""
+
+msgid "VPN server"
+msgstr "VPN服务器"
+
+msgid "Virtual Channel Identifier (VCI)"
+msgstr "虚拟信道标识符"
+
+msgid "Virtual Path Identifier (VPI)"
+msgstr "虚拟路径标识"
+
+msgid "WAN"
+msgstr ""
+
+msgid "WPA-PSK"
+msgstr ""
+
+msgid "WPA-PSK/WPA2-PSK Mixed Mode"
+msgstr ""
+
+msgid "WPA2-PSK"
+msgstr ""
+
+msgid "Wed."
+msgstr "星期三"
+
+msgid "White List"
+msgstr "白名单"
+
+msgid "Wired"
+msgstr "有线网络"
+
+msgid "Wireless Security"
+msgstr "无线安全"
+
+msgid "Wireless Settings"
+msgstr "无线设置"
+
+msgid "Wireless network is"
+msgstr "无线网络"
+
+msgid "Wireless"
+msgstr "无线网络"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "You are about to reboot the router, continue?"
+msgstr "您将要重启路由器，是否继续？"
+
+msgid "You can add host name to IP address mapping here. One entry per line."
+msgstr "您可以在这里添加主机名到地址映射。每行一项。"
+
+msgid "You don't have permission to access the Internet on this network."
+msgstr "您没有权限访问互联网在这个网络上。"
+
+msgid "Youtube Restricted Mode"
+msgstr "YouTube受限模式"
+
+msgid "disabled"
+msgstr "已禁用"
+
+msgid "enabled"
+msgstr "已启用"
+
+msgid "indicates required field."
+msgstr "表示必填项目"
+
+msgid "View/Edit Calendars"
+msgstr "查看/编辑日历"
+
+msgid "Calendars"
+msgstr "日历"
+
+msgid "New Calendar"
+msgstr "新建日历"
+
+msgid "Edit Calendar"
+msgstr "编辑日历"
+
+msgid "Invalid port number"
+msgstr "端口号无效"
+
+msgid "Invalid DNS server IP address"
+msgstr "DNS服务器IP地址无效"
+
+msgid "Please enter calendar name"
+msgstr "请输入日历名称"
+
+msgid "Please enter a valid profile name"
+msgstr "请输入一个有效的配置名"
+
+msgid "Please enter profile name"
+msgstr "请输入配置名"
+
+msgid "Please enter a valid username"
+msgstr "请输入有效的用户名"
+
+msgid "Username already exists"
+msgstr "此用户名已存在"
+
+msgid "Are you sure you want to delete the profile"
+msgstr "您确定要删除配置文件"
+
+msgid "Are you sure you want to delete the calendar"
+msgstr "您确定要删除日历"
+
+msgid "Are you sure you want to delete the user"
+msgstr "您确定要删除用户"
+
+msgid "MAC address already added"
+msgstr "MAC地址已添加"
+
+msgid "Click the Add button to add devices to this profile"
+msgstr "单击\"添加\"按钮将设备添加到该配置"
+
+msgid "Click the Add button to add proxy users to this profile"
+msgstr "单击\"添加\"按钮将用户添加到该配置"
+
+msgid "Please enter username"
+msgstr "请输入用户名"
+
+msgid "Please enter password"
+msgstr "请输入密码"
+
+msgid "Please enter new password"
+msgstr "请输入新密码"
+
+msgid "Invalid value for force interval"
+msgstr "强迫更新间隔值无效"
+
+msgid "Invalid value for check interval"
+msgstr "检查间隔值无效"
+
+msgid "Please confirm your password"
+msgstr "请确认您的密码"
+
+msgid "Please enter SSID"
+msgstr "请输入SSID"
+
+msgid "Passwords do not match"
+msgstr "密码不匹配"
+
+msgid "Signal"
+msgstr "信号"
+
+msgid "You are configuring the router for the first time. Please set "
+"a password. You will need to enter this password in the future in "
+"order to manage this router."
+msgstr ""
+
+msgid "Please enter your email address below. Notifications will be "
+"sent to this email address when new firmware updates become available."
+msgstr ""
+
+msgid "You can omit this field if you don't want to receive email notifications."
+msgstr ""
+
+msgid "Email address is invalid."
+msgstr ""
+
+msgid "Enable stealth mode"
+msgstr ""
+
+msgid "Block ping"
+msgstr ""
+
+msgid "WiFi Schedule"
+msgstr ""
+
+msgid "Always On"
+msgstr ""
+
+msgid "Limited Time"
+msgstr ""
+
+msgid "Edit WiFi Calendar"
+msgstr ""
+
+msgid "WiFi Security"
+msgstr "无线安全"
+
+msgid "Use the same MAC filter for all bands"
+msgstr ""
+
+msgid "Enable guest network"
+msgstr ""
+
+msgid "Please enter the Guest SSID"
+msgstr ""
+
+msgid "Guest SSID cannot be the same as main SSID"
+msgstr ""

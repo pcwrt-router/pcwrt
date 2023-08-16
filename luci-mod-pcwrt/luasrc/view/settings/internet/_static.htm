@@ -1,0 +1,39 @@
+<div id="proto-static" class="proto-option hidden">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<input type="hidden" name="proto" value="static">
+<input type="hidden" name="peerdns" value="0">
+<div class="form-group">
+	<label class="control-label required" for="static-ipaddr" data-hint="<%:IP address assigned by your Internet Service Provider (ISP).%>"><%:IP address%></label>
+	<input class="form-control" type="text" id="static-ipaddr" name="ipaddr">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="static-netmask" data-hint="<%:Network mask for the Internet interface.%>"><%:IP netmask%></label>
+	<input class="form-control" type="text" id="static-netmask" name="netmask">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="static-gateway" data-hint="<%:Default gateway for the Internet interface.%>"><%:IP gateway%></label>
+	<input class="form-control" type="text" id="static-gateway" name="gateway">
+</div>
+<div>
+<div class="form-group">
+	<label class="control-label required" for="static-dns1" data-hint="<%:IP address of the DNS server%>"><%:DNS server%></label>
+	<input class="form-control" type="text" id="static-dns1" name="dns1">
+</div>
+<div class="form-group">
+	<label class="control-label" for="static-dns2" data-hint="<%:IP address of the alternative DNS server%>"><%:Alternative DNS server%></label>
+	<input class="form-control" type="text" id="static-dns2" name="dns2">
+</div>
+</div>
+<div class="form-group">
+	<label class="control-label" for="static-macadd" data-hint="<%:You may want to override the MAC address if your ISP binds the service to a specific MAC address.%>"><%:Override MAC address%></label>
+	<input class="form-control" type="text" id="static-macaddr" name="macaddr">
+</div>
+<div class="form-group">
+	<label class="control-label" for="static-mtu" data-hint="<%:Override the size of the maximum transmission unit (MTU).%>"><%:Override MTU%></label>
+	<input class="form-control" type="text" id="static-mtu" name="mtu">
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+</div>

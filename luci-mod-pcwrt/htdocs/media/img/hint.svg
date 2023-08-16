@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<svg xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:svg="http://www.w3.org/2000/svg" id="svg2" viewBox="0 0 500 500" version="1.1">
+  <title id="title4051">Help Orb Button</title>
+  <defs id="defs4">
+    <radialGradient id="radialGradient3829" gradientUnits="userSpaceOnUse" cy="801.96" cx="749.99" gradientTransform="matrix(1.6835 .022181 -.022420 1.7005 -994.1 -578.29)" r="131.04">
+      <stop id="stop3825" stop-color="#fff" offset="0"/>
+      <stop id="stop3827" stop-color="#87aade" offset="1"/>
+    </radialGradient>
+    <linearGradient id="linearGradient3839" y2="233.06" gradientUnits="userSpaceOnUse" x2="439.19" y1="290.32" x1="9.1936">
+      <stop id="stop3835" stop-color="#808080" offset="0"/>
+      <stop id="stop3853" stop-color="#93a7ac" offset=".31766"/>
+      <stop id="stop3855" stop-color="#fff" offset=".50745"/>
+      <stop id="stop3843" stop-color="#999" offset=".75959"/>
+      <stop id="stop3837" stop-color="#ccc" offset="1"/>
+    </linearGradient>
+    <radialGradient id="radialGradient3883" gradientUnits="userSpaceOnUse" cy="802.36" cx="750" gradientTransform="matrix(.98197 -.0000057401 .0000057080 .97648 -486.48 18.877)" r="240">
+      <stop id="stop3879" stop-color="#06f" offset="0"/>
+      <stop id="stop3881" stop-color="#214478" offset="1"/>
+    </radialGradient>
+    <radialGradient id="radialGradient4004" gradientUnits="userSpaceOnUse" cy="61.007" cx="256.33" gradientTransform="matrix(-2.1703 0 0 -.87921 810.67 48.396)" r="240">
+      <stop id="stop3956" stop-color="#fff" offset="0"/>
+      <stop id="stop3958" stop-color="#fff" stop-opacity="0" offset="1"/>
+    </radialGradient>
+  </defs>
+  <g id="layer1" transform="translate(0 -552.36)">
+    <path id="path3831" d="m490 250a240 240 0 1 1 -0.003 -1.1419" fill="url(#linearGradient3839)" transform="translate(0 552.36)"/>
+    <path id="path3045" d="m290.26 941.94c0 18.392-17.549 33.302-39.197 33.302s-39.197-14.91-39.197-33.302 17.549-33.302 39.197-33.302c21.575 0 39.094 14.814 39.196 33.144m-50.4-312.77c-58.859 0.60515-113.14 42.049-117.9 92.139-1.3084 6.1838-1.9764 12.387-2.7123 18.658 33.86 21.356 33.86 21.356 73.1 7.3592 0.767-23.538 11.59-50.571 38.847-60.583 31.914-11.688 75.871 8.7082 76.862 39.509-0.30522 21.272-22.351 35.048-39.738 47.453-29.331 20.987-54.321 50.488-53.606 84.491-0.61197 10.368 0.0172 20.746 0.38387 31.111 36.003 14.74 36.003 14.74 70.038 0-6.037-32.834-0.42028-50.793 22.967-66.27 29.029-22.273 62.35-45.507 71.307-79.502 13.76-50.664-32.995-105.08-93.18-111.54-15.213-2.7105-30.834-3.0162-46.371-2.8248z" stroke="#435f9f" stroke-width=".2" fill="url(#radialGradient3829)"/>
+    <path id="path2987" fill="url(#radialGradient3883)" d="m250 562.36c-132.55 0-240 107.45-240 240s107.45 240 240 240 240-107.45 240-240v-1.1562c-0.63-132.1-107.9-238.84-240-238.84zm-5 62.344c14.022-0.0336 28.063 0.50386 41.781 2.9375 62.023 6.6272 110.21 62.45 96.031 114.44-9.2301 34.883-43.584 58.739-73.5 81.594-24.101 15.881-29.878 34.308-23.656 68-35.074 15.125-35.085 15.125-72.188 0-0.3779-10.636-1.0057-21.299-0.375-31.938-0.73634-34.891 24.992-65.152 55.219-86.688 17.918-12.729 40.654-26.86 40.969-48.688-1.0219-31.606-46.33-52.525-79.219-40.531-28.089 10.274-39.241 38.004-40.031 62.156-40.439 14.363-40.45 14.352-75.344-7.5625 0.75831-6.4348 1.4641-12.78 2.8125-19.125 4.9048-51.398 60.843-93.942 121.5-94.562 2.0015-0.0246 3.9968-0.0264 6-0.0312zm5.5312 286.97c22.234 0 40.3 15.222 40.406 34.031v0.15625c0 18.873-18.097 34.156-40.406 34.156s-40.375-15.283-40.375-34.156 18.066-34.188 40.375-34.188z"/>
+    <path id="path3903" opacity="0" d="m361.29 164.92a105.24 47.177 0 1 1 -0.001 -0.22447" stroke-width=".2" transform="matrix(1.1091 0 0 1.6035 -30.812 444.93)"/>
+    <path id="path3952" d="m241.53 80.062c-44.51 0.139-90.29 23.428-109.75 64.498-4.86 11.63-7.82 24.62-7.97 37 0 0.03 0.01 0.07 0 0.1-0.25 2.17-0.43 4.35-0.5 6.56 6.61 5.18 13.92 9.95 21.88 14.25 11.19 3.09 20.96-0.36 44.84-8.85 0.79-24.15 11.94-51.88 40.03-62.15 32.89-11.99 78.2 8.92 79.22 40.53-0.31 21.83-23.05 35.96-40.97 48.69-2.8 1.99-5.57 4.07-8.28 6.22 45.65-1.8 86.27-15.79 114.47-37.03 9.05-31.02-6.65-65.03-31.88-83.66-27.06-21.39-63.07-26.351-96.78-26.126-1.43-0.044-2.87-0.036-4.31-0.032z" fill="url(#radialGradient4004)" transform="translate(0 552.36)"/>
+    <path id="path4002" d="m250 10.812c-91.13 0-165 48.399-165 108.13 0 23.25 11.199 44.8 30.25 62.44 0.59-4.84 1.23-9.64 2.25-14.44 4.9-51.4 60.84-93.944 121.5-94.565 2-0.024 4-0.026 6-0.031 14.02-0.034 28.06 0.504 41.78 2.937 58.81 6.284 105.15 56.779 97.72 106.31 19.2-17.67 30.5-39.3 30.5-62.65v-0.5c-0.43-59.528-74.18-107.63-165-107.63zm-0.5 117.25c-6.67 0.08-13.27 1.16-19.44 3.41-28.09 10.27-39.24 38-40.03 62.15-23.88 8.49-33.65 11.94-44.84 8.85 28.5 15.38 65.01 24.62 104.81 24.62 3.37 0 6.71-0.05 10.03-0.18 2.71-2.15 5.48-4.23 8.28-6.22 17.92-12.73 40.66-26.86 40.97-48.69-0.83-25.68-30.89-44.29-59.78-43.94z" fill="url(#radialGradient4004)" transform="translate(0 552.36)"/>
+  </g>
+  <metadata>
+    <rdf:RDF>
+      <cc:Work>
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+        <cc:license rdf:resource="http://creativecommons.org/licenses/publicdomain/"/>
+        <dc:publisher>
+          <cc:Agent rdf:about="http://openclipart.org/">
+            <dc:title>Openclipart</dc:title>
+          </cc:Agent>
+        </dc:publisher>
+        <dc:title>Help Orb Button</dc:title>
+        <dc:date>2011-01-15T12:02:28</dc:date>
+        <dc:description>This is a help button, a glossy orb button with a question mark. Usually used as a help button in an application.</dc:description>
+        <dc:source>http://openclipart.org/detail/104977/help-orb-button-by-decosigner</dc:source>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>decosigner</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>button with a question mark</rdf:li>
+            <rdf:li>clip art</rdf:li>
+            <rdf:li>clipart</rdf:li>
+            <rdf:li>glossy help orb</rdf:li>
+            <rdf:li>glossy orb button</rdf:li>
+            <rdf:li>help button</rdf:li>
+            <rdf:li>help orb</rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+      </cc:Work>
+      <cc:License rdf:about="http://creativecommons.org/licenses/publicdomain/">
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Reproduction"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#Distribution"/>
+        <cc:permits rdf:resource="http://creativecommons.org/ns#DerivativeWorks"/>
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>

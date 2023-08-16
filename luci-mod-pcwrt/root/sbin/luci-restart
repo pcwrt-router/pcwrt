@@ -1,0 +1,45 @@
+#!/bin/sh
+. /lib/functions.sh
+
+apply_config() {
+	config_get init "$1" init
+	config_get exec "$1" exec
+	config_get test "$1" test
+
+	echo "$2" > "/var/run/luci-restart-status"
+
+	[ -n "$init" ] && restart_init "$2" "$init" "$test"
+	[ -n "$exec" ] && restart_exec "$2" "$exec" "$test"
+}
+
+restart_exec() {
+	local service="$1"
+	local ok="$3"
+	set -- $2
+	local cmd="$1"; shift
+	
+	[ -x "$cmd" ] && {
+		echo "restarting $service... "
+		( $cmd "$@" ) 2>/dev/null 1>&2
+		[ -n "$ok" -a "$?" != "$ok" ] && echo '!!! Failed to restart' $service '!!!'
+	}
+}
+
+restart_init() {
+	[ -x /etc/init.d/$2 ] && /etc/init.d/$2 enabled && {
+		echo "restarting $1... "
+		/etc/init.d/$2 restart >/dev/null 2>&1
+		[ -n "$3" -a "$?" != "$3" ] && echo '!!! Failed to restart' $1 '!!!'
+	}
+}
+
+lock "/var/run/luci-restart"
+
+config_load ucitrack
+
+for i in $*; do
+	config_foreach apply_config $i $i
+done
+
+rm -f "/var/run/luci-restart-status"
+lock -u "/var/run/luci-restart"

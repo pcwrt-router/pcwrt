@@ -1,0 +1,45 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+	
+<div class="container settings-header">
+<h3><%:Dynamic DNS%></h3>
+<span class="required-mark" title="<%:Required mark%>"></span> <%:indicates required field.%>
+</div>
+
+<div class="container narrow-form">
+<form action="<%=build_url(section..'/ddns/update')%>" method="POST">
+<div class="form-group">
+<label class="control-label" for="servicesel"><%:Service%></label>
+<div><select id="servicesel" name="service_name" class="form-control">
+	<option value=""><%:Disabled%></option>
+	<option value="dnsomatic.com">dnsomatic.com</option>
+</select></div>
+</div>
+
+<div id="dnsomatic_com" class="service-option" style="display:none">
+<div class="form-group">
+	<label class="control-label required" for="username"><%:Username%></label>
+	<input class="form-control" type="text" id="username" name="username" autocomplete="off">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="password"><%:Password%></label> 
+	<input class="form-control reveal" id="password" name="password" type="password" autocomplete="off">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="force_interval"><%:Force	Interval%></label>
+	<input class="form-control" type="text" id="force_interval" name="force_interval" data-units="<%:Hours%>=h;<%:Minutes%>=m">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="check_interval"><%:Check Interval%></label>
+	<input class="form-control" type="text" id="check_interval" name="check_interval" data-units="<%:Hours%>=h;<%:Minutes%>=m">
+</div>
+</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+
+</div>
+
+<%+'_footer'%>

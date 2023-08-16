@@ -1,0 +1,16 @@
+<% require "luci.http" %>
+<html>
+	<body>
+		<script type="text/javascript">
+			var interval = window.setInterval(function() {
+				var img = new Image();
+				img.onload = function() {
+					window.clearInterval(interval);
+					window.top.location = ('https:' == document.location.protocol ? 'https://' : 'http://') + '<%=addr%><%=build_url('')%>/<%=page%>';
+				};
+
+				img.src = ('https:' == document.location.protocol ? 'https://' : 'http://') + '<%=addr%><%=media%>/img/pcwrt.png?' + Math.random();
+			}, 5000);
+		</script>
+	</body>
+</html>

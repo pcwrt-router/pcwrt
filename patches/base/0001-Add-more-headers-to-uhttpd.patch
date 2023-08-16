@@ -1,0 +1,43 @@
+From 2a353af14efb81638a230da5cd2864d400abc87d Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Sun, 13 Aug 2023 19:44:39 -0500
+Subject: [PATCH] Add more headers to uhttpd
+
+---
+ .../uhttpd/patches/010-add-http-headers.patch | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+ create mode 100644 package/network/services/uhttpd/patches/010-add-http-headers.patch
+
+diff --git a/package/network/services/uhttpd/patches/010-add-http-headers.patch b/package/network/services/uhttpd/patches/010-add-http-headers.patch
+new file mode 100644
+index 0000000000..b0e5d7f694
+--- /dev/null
++++ b/package/network/services/uhttpd/patches/010-add-http-headers.patch
+@@ -0,0 +1,24 @@
++Index: uhttpd-2020-03-13-975dce23/proc.c
++===================================================================
++--- uhttpd-2020-03-13-975dce23.orig/proc.c
+++++ uhttpd-2020-03-13-975dce23/proc.c
++@@ -35,6 +35,9 @@
++ 	__header(user_agent, user-agent) \
++ 	__header(content_type, content-type) \
++ 	__header(content_length, content-length) \
+++	__header(x_requested_with, x-requested-with) \
+++	__header(x_forwarded_for, x-forwarded-for) \
+++	__header(x_username, x-username) \
++ 	__header(x_http_method_override, x-http-method-override) \
++ 	__header(http_auth_user, http-auth-user) \
++ 	__header(http_auth_pass, http-auth-pass)
++@@ -72,6 +75,9 @@ static const struct {
++ 	{ "HTTP_AUTH_PASS", HDR_http_auth_pass },
++ 	{ "CONTENT_TYPE", HDR_content_type },
++ 	{ "CONTENT_LENGTH", HDR_content_length },
+++	{ "HTTP_X_REQUESTED_WITH", HDR_x_requested_with },
+++	{ "HTTP_X_FORWARDED_FOR", HDR_x_forwarded_for },
+++	{ "HTTP_X_USERNAME", HDR_x_username },
++ };
++ 
++ enum extra_vars {
+-- 
+2.34.1
+

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   viewBox="0 0 157.86398 154.14141"
+   id="svg3049"
+   version="1.1"
+   inkscape:version="0.48.3.1 r9886"
+   width="100%"
+   height="100%"
+   sodipodi:docname="glass-plus.svg">
+  <defs
+     id="defs3073" />
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="640"
+     inkscape:window-height="480"
+     id="namedview3071"
+     showgrid="false"
+     fit-margin-top="15"
+     fit-margin-left="15"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     inkscape:zoom="0.41986485"
+     inkscape:cx="86.352851"
+     inkscape:cy="69.639714"
+     inkscape:window-x="596"
+     inkscape:window-y="517"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg3049" />
+  <g
+     id="imagebot_1"
+     label="Layer 1"
+     transform="translate(14.352852,14.501689)">
+    <g
+       id="imagebot_2"
+       transform="matrix(0.81995,0,0,0.81995,-251.18,-281.38)"
+       label="Layer 1">
+      <g
+         id="imagebot_3">
+        <path
+           id="imagebot_5"
+           d="m 443.16,414.45 c 0,36.1 -29.27,65.36 -65.36,65.36 -36.1,0 -65.36,-29.26 -65.36,-65.36 0,-36.1 29.26,-65.36 65.36,-65.36 36.09,0 65.36,29.26 65.36,65.36 z"
+           inkscape:connector-curvature="0"
+           style="fill:none;stroke:#808080;stroke-width:10.63000011;stroke-linecap:round;stroke-linejoin:round" />
+        <path
+           id="imagebot_4"
+           d="m 428.3,464.45 42.43,38.39"
+           inkscape:connector-curvature="0"
+           style="fill:none;stroke:#808080;stroke-width:21.26000023;stroke-linecap:round" />
+      </g>
+    </g>
+    <title
+       label="Layer 1"
+       id="title3056" />
+  </g>
+  <g
+     id="imagebot_12"
+     transform="translate(14.352852,14.501689)">
+    <title
+       id="title3059">Layer 2</title>
+  </g>
+  <g
+     id="imagebot_13"
+     transform="translate(14.352852,14.501689)">
+    <title
+       id="title3062">Layer 3</title>
+    <g
+       id="imagebot_18"
+       transform="matrix(2.8746,0,0,2.8746,10.0002,19.183)">
+      <path
+         id="imagebot_8"
+         d="m 33.278,34.941 a 10.319,2.3202 0 1 1 -20.638,0 10.319,2.3202 0 1 1 20.638,0 z"
+         transform="matrix(1.5505,0,0,1.9787,-19.5988,-44.011)"
+         label="Layer 1"
+         inkscape:connector-curvature="0"
+         style="opacity:0.10824998;fill:url(#imagebot_9);stroke-width:3;stroke-linecap:round;stroke-linejoin:round" />
+      <path
+         id="imagebot_7"
+         d="m 20.396,26.023 v -9.027 l 9.979,-0.04 V 9.9607 H 20.406 L 20.396,5e-4 13.38,0.011679 l 0.005,9.9311 -9.9899,0.0732 -0.0357,6.969 10.035,-0.029 0.006,9.04 6.996,0.027 z"
+         label="Layer 1"
+         inkscape:connector-curvature="0"
+         style="fill:#75a1d0;stroke:#3465a4;stroke-width:1px" />
+      <path
+         id="imagebot_16"
+         d="M 19.381,25.014 V 15.98 H 29.384 L 29.377,10.956 H 19.39 V 0.9608 l -4.995,0.01786 0.009,9.9773 -10.026,0.018 -0.0271,4.973 10.064,0.009 -0.013,9.027 4.979,0.031 z"
+         label="Layer 1"
+         inkscape:connector-curvature="0"
+         style="opacity:0.40859997;fill:url(#imagebot_5);stroke:url(#imagebot_6);stroke-width:1px" />
+      <path
+         id="imagebot_17"
+         d="m 3.8822,13.48 c 0,1.938 25.985,-0.968 25.985,-0.031 v -3 l -9.985,0.031 V 0.5152 l -6,4e-5 v 9.9648 H 3.8824 v 3 z"
+         label="Layer 1"
+         inkscape:connector-curvature="0"
+         style="opacity:0.31182999;fill:#ffffff;fill-rule:evenodd;stroke-width:1px" />
+    </g>
+  </g>
+  <metadata
+     id="metadata3069">
+    <rdf:RDF>
+      <cc:Work>
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/publicdomain/" />
+        <dc:publisher>
+          <cc:Agent
+             rdf:about="http://openclipart.org/">
+            <dc:title>Openclipart</dc:title>
+          </cc:Agent>
+        </dc:publisher>
+        <dc:title>Zoom in</dc:title>
+        <dc:date>2013-10-23T05:32:26</dc:date>
+        <dc:description />
+        <dc:source>http://openclipart.org/detail/185357/zoom-in-by-dako-185357</dc:source>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>DaKo</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>in</rdf:li>
+            <rdf:li>magnifier</rdf:li>
+            <rdf:li>magnify</rdf:li>
+            <rdf:li>plus</rdf:li>
+            <rdf:li>zoom</rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/publicdomain/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>

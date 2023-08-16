@@ -1,0 +1,319 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+	
+<div class="container settings-header">
+<h3><%:Network Settings%></h3>
+<span class="required-mark" title="<%:Required mark%>"></span> <%:indicates required field.%>
+</div>
+
+<div class="container">
+<form action="<%=build_url(section..'/network/update')%>" method="POST">
+<div class="col-md-4 offset-5pct">
+<fieldset>
+<legend><%:LAN%></legend>
+<div class="form-group">
+	<label class="control-label required" for="ipaddr"><%:IP Address%></label>
+	<input class="form-control" id="ipaddr" name="ipaddr">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="netmask"><%:Netmask%></label>
+	<select class="form-control" id="netmask" name="netmask" data-editable="true">
+		<option value="255.255.255.0">255.255.255.0</option>
+		<option value="255.255.0.0">255.255.0.0</option>
+		<option value="255.0.0.0">255.0.0.0</option>
+	</select>
+</div>
+<div class="form-group">
+	<label class="control-label required" for="start"><%:DHCP Start%></label>
+	<input class="form-control" id="start" name="start">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="limit"><%:DHCP Limit%></label>
+	<input class="form-control" id="limit" name="limit">
+</div>
+<div class="form-group">
+	<label class="control-label required" for="leasetime"><%:DHCP Lease Time%></label>
+	<input class="form-control" id="leasetime" name="leasetime" data-units="<%:Hours%>=h;<%:Minutes%>=m">
+</div>
+</fieldset>
+</div>
+
+<div class="col-md-6 offset-5pct">
+<fieldset>
+<legend><%:Hostnames and Static Leases%></legend>
+<p class="help-block"><%:Click the Add button to add a friendly name and fixed IP
+address to a network device. Click the "minus" icon on a row to remove the hostname 
+and fixed IP address.%></p>
+<div id="static-hosts"><table id="hosts" class="table margin-bottom-10">
+	<tr><th><%:MAC Address%></th><th><%:IP Address%></th><th><%:Hostname%></th></tr>
+</table></div>
+<div class="form-group pull-right">
+	<button class="btn btn-default pull-right add-dialog"><%:Add%></button>
+</div>
+</fieldset>
+</div>
+
+<div id="nat-offloading" style="display:none">
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-10 offset-5pct">
+<fieldset>
+<legend><%:NAT Offloading%></legend>
+<div class="col-md-10 checkbox">
+	<label>
+		<input type="checkbox" name="flow_offloading" value="1">
+		<%:Software flow offloading%>
+	</label>
+</div>
+</fieldset>
+</div>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-10 offset-5pct">
+<fieldset>
+<legend><%:Security%></legend>
+<div class="col-md-3 checkbox">
+	<label>
+		<input type="checkbox" name="stealth_mode" value="1">
+		<%:Stealth Mode%>
+	</label>
+</div>
+<div class="col-md-3 checkbox">
+	<label>
+		<input type="checkbox" name="block_ping" value="1">
+		<%:Block ping%>
+	</label>
+</div>
+<div class="col-md-3 checkbox" style="display:none">
+	<label>
+		<input type="checkbox" name="dnsrebind" value="1">
+		<%:Block DNS rebind attack%>
+	</label>
+</div>
+<div class="col-md-3 checkbox" style="display:none">
+	<label>
+		<input type="checkbox" name="mdns" value="1">
+		<%:Enable mDNS%>
+	</label>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-10 offset-5pct">
+<fieldset>
+<legend><%:VLAN%></legend>
+<p class="help-block"><%:Select the network for each Ethernet port to attach to. Looking at the back of the router, port 1 to port 4 goes from left to right.%></p>
+<div id="vlan-ports"></div>
+<div class="clearfix"></div>
+<p class="help-block"><%:Configuration for access rules between VLANs. Each row represents a source, while each column represents a destination. For example, if you want devices on the LAN network to be able to access devices on the Guest network, then check the box on row 1, column 2. If you want to disable communications between devices on the same VLAN, then uncheck a checkbox on the diagonal. For example, you can uncheck the box on row 2, column 2 to isolate devices on the Guest network.%></p>
+	<table id="vlan-map">
+		<tr><td colspan="2" style="width:1px;border:none;"></td><td colspan="5" style="border:none;text-align:center;padding-bottom:10px;"><%:Destination%></td></tr>
+		<tr><td style="width:1px;border:none;"></td><td></td><th>LAN</th><th>Guest</th><th>X1</th><th>X2</th><th>X3</th></tr>
+		<tr><td id="vlansrc" rowspan="5" style="border:none;width:1px;overflow:hidden;transform: rotate(270deg);transform-origin:center;"></td><th>LAN</th><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td></tr>
+		<tr><th>Guest</th><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td></tr>
+		<tr><th>X1</th><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td></tr>
+		<tr><th>X2</th><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td></tr>
+		<tr><th>X3</th><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td><td><input name="vlanmap" type="checkbox"></td></tr>
+	</table>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-10 offset-5pct">
+<fieldset>
+<legend><%:Port Forwards%></legend>
+<p class="help-block"><%:Port forwarding allows remote computers on the Internet to connect to a specific computer or service within the private LAN.%></p>
+<div><table id="forwards" class="table margin-bottom-10">
+	<tr><th><%:Name%></th><th><%:Protocol%></th><th><%:External Port%></th><th><%:Internal Address%></th><th><%:Internal Port%></th></tr>
+</table></div>
+<div class="form-group">
+	<button class="btn btn-default pull-right add-dialog"><%:Add%></button>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-10 offset-5pct">
+<fieldset>
+<legend><%:Static Routes%></legend>
+<p class="help-block"><%:Click the Add button to add a static route.%></p>
+<div><table id="routes" class="table margin-bottom-10">
+	<tr><th><%:Interface%></th><th><%:Target%></th><th><%:Netmask%></th><th><%:Gateway%></th><th><%:Metric%></th></tr>
+</table></div>
+<div class="form-group">
+	<button class="btn btn-default pull-right add-dialog"><%:Add%></button>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+
+</form>
+</div>
+
+<div class="modal" id="hosts-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add Host Name%></h4>
+			</div>
+			<div class="modal-body">
+				<form>
+				<div class="form-group">
+				<label class="control-label" for="host-name"><%:Name%></label>
+				<select class="form-control" id="host-name" name="name" data-editable="true">
+				</select>
+				</div>
+				</form>
+
+				<div class="form-group">
+				<label class="control-label" for="host-ip"><%:IP Address%></label>
+				<input class="form-control" id="host-ip" name="ip">
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="host-mac"><%:MAC Address%></label>
+				<input class="form-control" id="host-mac" name="mac">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="routes-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add Static Route%></h4>
+			</div>
+			<div class="modal-body">
+				<form>
+				<div class="form-group">
+				<label class="control-label" for="route-interface"><%:Interface%></label>
+				<select class="form-control" id="route-interface" name="interface">
+					<option value="lan"><%:LAN%></option>
+					<option value="wan"><%:WAN%></option>
+				</select>
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="route-target"><%:Target%></label>
+				<input class="form-control" id="route-target" name="target">
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="route-netmask"><%:Netmask%></label>
+				<input class="form-control" id="route-netmask" name="route-netmask">
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="route-gateway"><%:Gateway%></label>
+				<input class="form-control" id="route-gateway" name="gateway">
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="route-metric"><%:Metric%></label>
+				<input class="form-control" id="route-metric" name="metric">
+				</div>
+				</form>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="forwards-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add Port Forward%></h4>
+			</div>
+			<div class="modal-body">
+				<form>
+				<div class="form-group">
+				<label class="control-label" for="forward-name"><%:Name%></label>
+				<select class="form-control" id="forward-name" name="name" data-editable="true">
+				</select>
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="forward-proto"><%:Protocol%></label>
+				<select class="form-control" id="forward-proto" name="proto" data-editable="true">
+					<option value="tcp udp">tcp udp</option>
+					<option value="tcp">tcp</option>
+					<option value="udp">udp</option>
+				</select>
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="forward-src_dport"><%:External Port%></label>
+				<input class="form-control" id="forward-src_dport" name="src_dport">
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="forward-dest_ip"><%:Internal Address%></label>
+				<select class="form-control" id="forward-dest_ip" name="dest_ip" data-editable="true">
+				</select>
+				</div>
+
+				<div class="form-group">
+				<label class="control-label" for="forward-dest_port"><%:Internal Port%></label>
+				<input class="form-control" id="forward-dest_port" name="dest_port">
+				</div>
+				</form>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	vlan_source: '<%:Source%>',
+	invalid_host: '<%:Invalid hostname%>',
+	duplicate_host: '<%:Hostname used by another device%>',
+	invalid_mac: '<%:Invalid MAC address%>',
+	duplicate_mac: '<%:Duplicate MAC address%>',
+	invalid_ip: '<%:Invalid IP address%>',
+	duplicate_ip: '<%:IP address used by another device%>',
+	invalid_target: '<%:Invalid target%>',
+	'invalid_route-netmask': '<%:Invalid netmask%>',
+	invalid_gateway: '<%:Invalid gateway%>',
+	invalid_metric: '<%:Invalid metric%>',
+	missing_proto: '<%:Please enter protocol%>',
+	port: '<%:Port%>',
+	tagged: '<%:Tagged%>',
+	invalid_port: '<%:Invalid port%>'
+};
+</script>
+
+<%+'_footer'%>

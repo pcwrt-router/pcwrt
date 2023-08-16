@@ -1,0 +1,99 @@
+<%+'_header'%>
+<div class="container">
+	<ol class="breadcrumb status">
+		<li class="active">
+		<strong><%:Local Time:%></strong> <span id="localtime"></span>
+		</li>
+		<li class="active">
+		<strong><%:Uptime:%></strong> <span id="uptime"></span>
+		</li>
+		<li class="active">
+		<strong><%:Load Average:%></strong> <span id="loadavg"></span>
+		</li>
+	</ol>
+</div>
+
+<div class="container">
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Internet%></legend>
+<table id="wan-stat" class="status-table offset-5pct">
+<tr><td><%:Status:%></td><td id="status">Up</td></tr>
+<tr><td><%:Type:%></td><td id="wantype">DHCP</td></tr>
+<tr><td><%:Address:%></td><td id="ipaddr">192.168.0.1</td></tr>
+<tr><td><%:Netmask:%></td><td id="netmask">255.255.255.0</td></tr>
+<tr><td><%:Gateway:%></td><td id="gateway">192.168.0.2</td></tr>
+<tr><td><%:DNS:%></td><td id="dns">204.8.0.9</td></tr>
+<tr><td><%:Connected:%></td><td id="connected">5d 7h 23m</td></tr>
+<tr><td><%:MAC Address:%></td><td id="macaddr">00:00:00:00:00:00</td></tr>
+</table>
+</fieldset>
+</div>
+<div id="wifi-stat" class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Wireless%></legend>
+<ul class="nav nav-tabs" role="tablist" style="display:none">
+<li role="presentation" class="active">
+<a href="#" aria-controls="" role="tab" data-toggle="tab"></a>
+</li>
+</ul>
+
+<div class="tab-content">
+<div role="tabpanel" class="tab-pane fade in active">
+<table class="status-table wifi">
+<tr><td><%:SSID:%></td><td></td></tr>
+<tr><td><%:Mode:%></td><td></td></tr>
+<tr><td><%:Channel:%></td><td></td></tr>
+<tr><td><%:Encryption:%></td><td></td></tr>
+</table>
+</div>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="col-md-11 offset-5pct">
+<fieldset>
+<legend><%:Connected Devices%><span id="refresh-hosts" title="<%:Refresh connected devices%>" class="refresh">&nbsp;&nbsp;</span></legend>
+<table id="assocs" class="table table-striped">
+<tr><th><%:Hostname%></th><th><%:IP Address%></th><th><%:MAC Address%></th><th><%:Network%></th><th><%:Signal%></th></tr>
+</table>
+</fieldset>
+</div>
+
+</div>
+
+<div class="modal" id="hostname-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="change-hostname" action="<%=build_url('settings/network/change_hostname')%>" method="POST">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Change Hostname%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label class="control-label required" for="hostname"><%:Hostname%></label> 
+					<input class="form-control" id="hostname" name="hostname" type="text">
+					<input id="mac" name="mac" type="hidden">
+					<input id="ip" name="ip" type="hidden">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:Save%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+<form name="refresh-hosts-form" id="refresh-hosts-form" action="<%=build_url('status/refresh_hosts')%>" method="POST"></form>
+<form name="get-ip-status-form" id="get-ip-status-form" action="<%=build_url('status/get_ip_status')%>" method="POST"></form>
+<script type="text/javascript">
+window.msgs = {
+	refresh_hosts: '<%:Refreshing connected devices%>'
+}
+</script>
+<%+'_footer'%>

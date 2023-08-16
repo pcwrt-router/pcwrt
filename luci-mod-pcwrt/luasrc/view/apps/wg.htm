@@ -1,0 +1,403 @@
+<%+'_header'%>
+<%+'_breadcrumbs'%>
+<style type="text/css">
+#server .table tbody tr:first-child th, #client .table tbody tr:first-child th {
+	border-top: none;
+}
+span.resume {
+	font-size: 16px; color: #77a2d1; cursor: pointer;
+}
+span.list-remove,span.list-edit,span.resume {
+	margin: 2px;
+}
+</style>
+<div class="container settings-header">
+<h3><%:WireGuard%></h3>
+</div>
+
+<div class="container vpn">
+<ul class="nav nav-tabs" role="tablist">
+	<li class="active" role="presentation">
+		<a href="#client" aria-controls="WireGuard Client" role="tab" data-toggle="tab" aria-expanded="true"><%:Client%></a>
+	</li>
+	<li role="presentation">
+		<a href="#server" aria-controls="WireGuard Server" role="tab" data-toggle="tab" aria-expanded="false"><%:Server%></a>
+	</li>
+</ul>
+<div class="tab-content">
+<div id="client" class="tab-pane fade active in" role="tabpanel">
+<form id="wg-clients" action="<%=build_url(section..'/wg/update_client')%>" method="POST">
+<fieldset>
+<div class="col-md-4 offset-5pct">
+<legend><%:Enable for Network%></legend>
+<div class="checkbox margin-bottom-20">
+	<label>
+		<input type="checkbox" name="network" value="lan"> <%:LAN%>
+	</label>
+</div>
+</div>
+
+<div class="col-md-6 offset-5pct">
+<legend><%:Connections%></legend>
+<table id="wg-conns" class="table">
+	<tr><th><%:Name%></th><th class="text-center"><%:Auto-start%></th></tr>
+	<tr><td colspan="2"><div class="form-group pull-right">
+	<button id="add-wg-conn" class="btn btn-default pull-right"><%:Add%></button>
+	</div></td></tr>
+</table>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</fieldset>
+</form>
+</div> <%# client tab -%>
+<div id="server" class="tab-pane fade" role="tabpanel">
+<form id="download-peer-conf" action="<%=build_url(section..'/wg/download_peer_conf')%>" method="GET">
+	<input type="hidden" name="peername">
+	<input type="hidden" name="password">
+</form>
+<form id="download-peer-qr" action="<%=build_url(section..'/wg/download_peer_qr')%>" method="GET">
+	<input type="hidden" name="peername">
+</form>
+<form id="get-peer-info" action="<%=build_url(section..'/wg/get_peer_info')%>" method="GET">
+	<input type="hidden" name="peername">
+</form>
+<form id="wg-update" action="<%=build_url(section..'/wg/update')%>" method="POST">
+<div id="enable-disable" class="col-md-10 col-md-offset-1 alert-16px alert">
+<%:WireGuard Server is%> <span id="wg-status"></span>. 
+	<button id="enable-wg" class="btn btn-default btn-sm hidden pull-right"><%:Enable%></button>
+	<button id="disable-wg" class="btn btn-default btn-sm hidden pull-right"><%:Disable%></button>
+	<button id="restart-wg" class="btn btn-default btn-sm hidden pull-right" style="margin-right:4px;"><%:Restart%></button>
+</div>
+<div id="enable-alert" class="col-md-10 col-md-offset-1 alert-16px alert alert-info hidden">
+<%:Please check the settings below and click Save to enable WireGuard Server.%>
+</div>
+
+<div class="clearfix"></div>
+
+<div id="wg-settings" style="display:none;">
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Server Settings%></legend>
+<div class="form-group">
+	<label class="control-label" for="extaddr"><%:External Address%></label> 
+	<input class="form-control" name="extaddr" id="extaddr">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="port"><%:Port%></label> 
+	<input class="form-control" name="port" id="port">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="ipaddr"><%:IP Address%></label> 
+	<input class="form-control" name="ipaddr" id="ipaddr">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="netmask"><%:Netmask%></label> 
+	<input class="form-control" name="netmask" id="netmask">
+</div>
+
+<div class="form-group">
+	<label class="control-label" for="publickey"><%:Server Public Key%></label> 
+	<input class="form-control" name="publickey" id="publickey" readonly="true">
+</div>
+</fieldset>
+</div>
+
+<div class="col-md-5 offset-5pct">
+<fieldset>
+<legend><%:Peers%></legend>
+<div class="form-group">
+	<table id="peers" class="table">
+		<tr><th><%:Name%></th><th style="width:1%"><%:Internet%></th><th class="text-center"><%:Guest%></th></tr>
+		<tr><td colspan="3"><div class="form-group pull-right">
+		<button class="btn btn-default pull-right"><%:Add%></button>
+		</div></td></tr>
+	</table>
+</div>
+</fieldset>
+</div>
+
+<div class="clearfix"></div>
+<div class="padding-bottom-10px">&nbsp;</div>
+
+<div class="form-group text-center">
+	<button id="reinit-wg" type="button" class="btn btn-default"><%:Regenerate Server Key%></button>
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</div> <!-- wg-settings -->
+
+</form>
+</div> <%# server tab -%>
+</div> <%# tab content -%>
+</div>
+
+<form id="connect-wg" data-state_url="<%=build_url(section..'/wg/wg_state')%>" action="<%=build_url(section..'/wg/connect')%>" method="POST">
+	<input type="hidden" name="action">
+	<input type="hidden" name="cfg">
+</form>
+<form id="get-clientlog" action="<%=build_url(section..'/wg/client_logs')%>" method="GET"></form>
+<form id="get-connparms" action="<%=build_url(section..'/wg/get_conn_parms')%>" method="GET"></form>
+<form id="restart-server" action="<%=build_url(section..'/wg/restart_server')%>" method="POST"></form>
+<form id="wg-init" action="<%=build_url(section..'/wg/init_server')%>" method="POST"></form>
+<form id="client-init" action="<%=build_url(section..'/wg/init_client')%>" method="POST"></form>
+
+<div class="modal" id="wg-password" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Encrypt WireGuard Config File%></h4>
+			</div>
+			<div class="modal-body">
+				<p class="help-block">
+				<%:Enter a password to encrypt your WireGuard config file. Encrypted config files can be uploaded to another pcWRT router to configure a client connection. You can omit the encryption by leaving the password blank. However, it is strongly recommended that you encrypt the file with your own tools if you transmit the file by email or other means.%>
+				</p>
+				<div class="form-group">
+					<label for="password" class="control-label"><%:Encryption Password%></label>
+					<input class="form-control" name="password" id="password">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="add-peer" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add WireGuard Peer%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label for="peername" class="control-label"><%:Peer Name%></label>
+					<input class="form-control" name="peername" id="peername">
+				</div>
+				<div class="form-group">
+					<label for="pubkey" class="control-label"><%:Public Key%> <a href="#" id="gen-peer-key" style="font-size:14px;font-weight:normal;text-decoration:underline;"><%:Generate Keys%></a></label>
+					<input class="form-control" name="pubkey" id="pubkey">
+				</div>
+				<div class="form-group">
+					<label for="privkey" class="control-label"><%:Private Key%></label>
+					<input class="form-control" name="privkey" id="privkey" readonly="true">
+				</div>
+				<div class="form-group">
+					<label for="peerip" class="control-label"><%:IP Address%></label>
+					<input class="form-control" name="peerip" id="peerip" readonly="true">
+				</div>
+				<div class="form-group">
+					<label for="peerdns" class="control-label"><%:DNS Server%></label>
+					<input class="form-control" name="peerdns" id="peerdns" readonly="true">
+				</div>
+				<div class="form-group">
+					<label class="control-label block-label"><%:Internet Connection%></label>
+					<p class="help-block">
+					<%:If you choose VPN, the router will use an outbound VPN connection for the
+					Internet when the user connects. If there is no outbound VPN connection from
+					the router, Internet access will be blocked.%>
+					</p>
+					<label class="radio-inline">
+						<input type="radio" name="vpnout" value="0" checked><%:ISP%>
+					</label>
+					<label class="radio-inline">
+						<input type="radio" name="vpnout" value="1"><%:VPN%>
+					</label>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="button" class="btn btn-success"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="conn-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="add-conn" method="POST">
+			<input type="hidden" id="oldconnname" name="oldconnname">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Add WireGuard Connection%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label class="control-label" for="connname"><%:Connection Name%> <a href="#" id="upload-conn-config" style="font-size:14px;font-weight:normal;text-decoration:underline;"><%:Upload WireGuard Config%></a></label>
+					<input class="form-control" id="connname" name="connname">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="svrhost"><%:Server Host%></label>
+					<input class="form-control" id="svrhost" name="svrhost">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="svrport"><%:Server Port%></label>
+					<input class="form-control" id="svrport" name="svrport">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="svrpubkey"><%:Server Public Key%></label>
+					<input class="form-control" id="svrpubkey" name="svrpubkey">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="presharedkey"><%:Preshared Key%></label>
+					<input class="form-control" id="presharedkey" name="presharedkey">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="cliprivkey"><%:Client Private Key%> <a href="#" id="gen-client-key" style="font-size:14px;font-weight:normal;text-decoration:underline;"><%:Generate Client Keys%></a></label>
+					<input class="form-control" id="cliprivkey" name="cliprivkey">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="clipubkey"><%:Client Public Key%></label>
+					<input class="form-control" id="clipubkey" name="clipubkey">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="cliip"><%:Client IP Address%></label>
+					<input class="form-control" id="cliip" name="cliip">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="cliport"><%:Client Port%></label>
+					<input class="form-control" id="cliport" name="cliport">
+				</div>
+
+				<div class="form-group">
+					<label class="control-label" for="clidns"><%:DNS Servers%></label>
+					<input class="form-control" id="clidns" name="clidns">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:OK%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="conn-config-modal">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form name="add-conn-config" action="<%=build_url(section..'/wg/add_conn_config')%>" method="POST">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Upload Connection Config%></h4>
+			</div>
+			<div class="modal-body">
+				<div class="form-group" id="wgconfig-group">
+					<label class="control-label" for="wgconfig-name"><%:WireGuard Config File%></label>
+					<div class="input-group">
+						<span class="input-group-btn">
+						<span class="btn btn-default btn-file">
+						<%:Browse…%> <input type="file" name="wgconfig">
+						</span>
+						</span>
+						<input id="wgconfig-name" class="form-control" name="wgconfig-name" readonly="" type="text">
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="decpass" class="control-label"><%:Decryption Password%></label>
+					<input class="form-control" name="decpass" id="decpass">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal"><%:Cancel%></button>
+				<button type="submit" class="btn btn-success"><%:OK%></button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="logs-modal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:WireGuard Client Log%></h4>
+			</div>
+			<div class="modal-body">
+				<p><code id="client-logs">
+				</code></p>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-success" data-dismiss="modal"><%:OK%></button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="modal" id="show-peer-qr" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h4 class="modal-title"><%:Scan QR Code%></h4>
+			</div>
+			<div class="modal-body text-center">
+				<img src="#">
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+window.msgs = {
+	add_wg_peer: '<%:Add WireGuard Peer%>',
+	edit_wg_peer: '<%:Edit WireGuard Peer%>',
+	enter_valid_peer_name: '<%:Please enter a valid WireGuard peer name%>',
+	enter_valid_conn_name: '<%:Please enter a valid WireGuard connection name%>',
+	peer_name_exists: '<%:WireGuard peer name already exists%>',
+	invalid_peer_public_key: '<%:Please enter a valid public key%>',
+	delete_peer_title: '<%:Delete WireGuard Peer%>',
+	delete_peer_confirm: '<%:Are you sure you want to delete WireGuard peer%>',
+	peer_not_saved_title: '<%:Unsaved WireGuard Peer%>',
+	peer_not_saved: '<%:Please click the Save button to save your changes.%>',
+	peer_conf_warn_title: '<%:Caution%>',
+	peer_conf_warn_msg: '<%:The file you are about to download contains the	private key for the WireGuard client, which will ebable anyone who has posession of the file to connect to your WireGuard server. It is strongly advised that you download this file directly to the WireGuard client machine. In particular, avoid emailing this file to someone else or yourself.%>',
+	add_wg_conn_title: '<%:Add WireGuard Connection%>',
+	edit_wg_conn_title: '<%:Edit WireGuard Connection%>',
+	empty_conn_name: '<%:Please enter a name for the connection%>',
+	duplicate_conn: '<%:Connection name already used%>',
+	invalid_host_name: '<%:Please enter the server hostname%>',
+	invalid_port: '<%:Please enter a valid port number%>',
+	empty_server_public_key: '<%:Please enter WireGuard server public key%>',
+	empty_client_private_key: '<%:Please enter the WireGuard client private key%>',
+	invalid_client_ip: '<%:Please enter a valid client IP address%>',
+	invalid_client_dns: '<%:Please enter DNS server IP address, separate multiple IP addresses by comma or space%>',
+	delete_wg_conn_title: '<%:Delete WireGuard Connection%>',
+	delete_wg_conn_confirm: '<%:Are you sure you want to delete WireGuard connection%>',
+	start_wgconf: '<%:Starting WireGuard connection%>',
+	uncommitted_title: '<%:Unsaved Changes%>',
+	uncommitted_changes: '<%:There are unsaved changes. Please click the Save button to save your changes.%>',
+	stop_wgconf: '<%:Stopping WireGuard connection%>',
+	logs_empty: '<%:Log is empty. The connection is probably down.%>',
+	restart_wg_title: '<%:Restart WireGuard Server%>',
+	restart_wg_message: '<%:WireGuard server successfully restarted.%>',
+	confirm_default_dns_title: '<%:WireGuard Connection DNS%>',
+	confirm_default_dns: '<%:Do you want to use Cloudflare DNS for this connection?%>',
+	fetching_qr_code: '<%:Fetching QR Code%>',
+	scan_qr_code_for: '<%:Scan QR Code for%>',
+	isp: '<%:ISP%>',
+	vpn: '<%:VPN%>'
+};
+</script>
+<%+'_footer'%>

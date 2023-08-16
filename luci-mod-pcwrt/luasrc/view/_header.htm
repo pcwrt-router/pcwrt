@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title><%=pcdata(translate(title))%></title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="stylesheet" href="<%=media%>/css/bootstrap.min.css">
+	<link rel="stylesheet" href="<%=media%>/css/bootstrap-theme.min.css">
+	<% if page_style then %>
+	<link rel="stylesheet" href="<%=media%>/css/<%=page_style%>">
+	<% end %>
+</head>
+
+<body>
+	<div id="wrapper">
+	<% if not no_banner then %>
+	<header role="banner">
+		<div class="container">
+			<a href="http://www.pcwrt.com/">
+			<img id="brand" src="<%=media%>/img/pcwrt.png" title="pcWRT">
+			</a>
+			<div id="main-menu" class="pull-right">
+			<ul class="nav nav-tabs">
+				<li class="<%=section=='status' and 'active' or ''%>"><a href="<%=build_url('status')%>"><%:Status%></a></li>
+				<li class="<%=section=='settings' and 'active' or ''%>"><a href="<%=build_url('settings')%>"><%:Settings%></a></li>
+				<li class="<%=section=='apps' and 'active' or ''%>"><a href="<%=build_url('apps')%>"><%:Apps%></a></li>
+			</ul>
+			<div>
+			<button id="reboot" class="btn btn-default btn-sm" data-url="<%=build_url('reboot')%>"><%:Reboot%></button>
+			<a id="logout" type="button" class="btn btn-default btn-sm" href="<%=build_url('logout')%>"><%:Logout%></a>
+			</div>
+			</div>
+		</div>
+	</header>
+	<% end %>
+	<div id="content">
+	<div id="internet-pause-alert" class="container" style="display:none;">
+	<div class="alert alert-warning"><span>Internet is paused.</span>
+	<button class="btn btn-default btn-sm pull-right" style="margin-top:-5px">Resume</button>
+	</div></div>

@@ -1,0 +1,34 @@
+<div id="proto-pppoe" class="proto-option hidden">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<input type="hidden" name="proto" value="pppoe">
+<div class="form-group">
+	<label class="control-label" for="pppoe-username" data-hint="<%:User name provided by your Internet Service Provider (ISP).%>"><%:Username%></label>
+	<input class="form-control" type="text" id="pppoe-username" name="username" autocomplete="off">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoe-password" data-hint="<%:Password provided by your Internet Service Provider (ISP)%>"><%:Password%></label>
+	<input class="form-control" type="password" id="pppoe-password" name="password" autocomplete="off">
+</div>
+<div class="form-group">
+	<input type="checkbox" id="pppoe-peerdns" name="peerdns" value="0">
+	<label class="control-label" for="pppoe-peerdns" data-hint="<%:Check this box to override DNS servers provided by your Internet Service Provider (ISP)%>"><%:Use custom DNS servers%></label>
+</div>
+<div>
+<div class="form-group">
+	<label class="control-label required" for="pppoe-dns1" data-hint="<%:IP address of the DNS server%>"><%:DNS server%></label>
+	<input class="form-control" type="text" id="pppoe-dns1" name="dns1">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoe-dns2" data-hint="<%:IP address of the alternative DNS server%>"><%:Alternative DNS server%></label>
+	<input class="form-control" type="text" id="pppoe-dns2" name="dns2">
+</div>
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoe-mtu" data-hint="<%:Override the size of the maximum transmission unit (MTU).%>"><%:Override MTU%></label>
+	<input class="form-control" type="text" id="pppoe-mtu" name="mtu">
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+</div>

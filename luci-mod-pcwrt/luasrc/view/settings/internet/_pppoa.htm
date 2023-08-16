@@ -1,0 +1,50 @@
+<div id="proto-pppoa" class="proto-option hidden">
+<form action="<%=build_url(section..'/internet/update')%>" method="POST">
+<input type="hidden" name="proto" value="pppoa">
+<div class="form-group">
+	<label class="control-label" for="pppoa-encaps" data-hint="<%:PPPoA encapsulation mode.%>"><%:PPPoA Encapsulation%></label>
+	<select id="pppoa-encaps" name="encaps" class="form-control">
+		<option value="llc"><%:LLC%></option>
+		<option value="vc"><%:VC-Mux%></option>
+	</select>
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-vci" data-hint="<%:PPPoA Virtual Channel Identifier%>"><%:Virtual Channel Identifier (VCI)%></label>
+	<input class="form-control" type="text" id="pppoa-vci" name="vci">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-vpi" data-hint="<%:PPPoA Virtual Path Identifier%>"><%:Virtual Path Identifier (VPI)%></label>
+	<input class="form-control" type="text" id="pppoa-vpi" name="vpi">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-username" data-hint="<%:User name provided by your Internet Service Provider (ISP).%>"><%:Username%></label>
+	<input class="form-control" type="text" id="pppoa-username" name="username" autocomplete="off">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-password" data-hint="<%:Password provided by your Internet Service Provider (ISP)%>"><%:Password%></label>
+	<input class="form-control" type="password" id="pppoa-password" name="password" autocomplete="off">
+</div>
+<div class="form-group">
+	<input type="checkbox" id="pppoa-peerdns" name="peerdns" value="0">
+	<label class="control-label" for="pppoa-peerdns" data-hint="<%:Check this box to override DNS servers provided by your Internet Service Provider (ISP)%>"><%:Use custom DNS servers%></label>
+</div>
+<div>
+<div>
+<div class="form-group">
+	<label class="control-label required" for="pppoa-dns1" data-hint="<%:IP address of the DNS server%>"><%:DNS server%></label>
+	<input class="form-control" type="text" id="pppoa-dns1" name="dns1">
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-dns2" data-hint="<%:IP address of the alternative DNS server%>"><%:Alternative DNS server%></label>
+	<input class="form-control" type="text" id="pppoa-dns2" name="dns2">
+</div>
+</div>
+<div class="form-group">
+	<label class="control-label" for="pppoa-mtu" data-hint="<%:Override the size of the maximum transmission unit (MTU).%>"><%:Override MTU%></label>
+	<input class="form-control" type="text" id="pppoa-mtu" name="mtu">
+</div>
+<div class="form-group text-center">
+	<button type="submit" class="btn btn-success"><%:Save%></button>
+</div>
+</form>
+</div>

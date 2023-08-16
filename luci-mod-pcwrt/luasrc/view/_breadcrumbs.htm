@@ -1,0 +1,14 @@
+<div class="container">
+<ol class="breadcrumb">
+<% 
+	bc = generate_breadcrumbs()
+	for i, v in ipairs(bc) do
+%>
+	<% if i == #bc then %>
+		<li class="active"><%=pcdata(v.display_name)%></li>
+	<% else %>
+		<li><a href="<%=v.url%>"><%=pcdata(v.display_name)%></a></li>
+	<% end %>
+<% end %>
+</ol>
+</div>
