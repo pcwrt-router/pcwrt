@@ -99,6 +99,9 @@ def setup_tree():
             ["cp", "-r", "../luci-mod-pcwrt", "feeds/luci/modules/"], check=True,
         )
         run(
+            ["scripts/feeds", "update", "luci"], check=True,
+        )
+        run(
             ["sed", "-i", "s/cgi-bin\/luci/cgi-bin\/pcwrt/",
             "feeds/luci/modules/luci-base/root/www/index.html"], check=True,
         )
@@ -106,7 +109,8 @@ def setup_tree():
             ["scripts/feeds", "install", "-a"], check=True,
         )
         print("### Install feeds done")
-    except e:
+    except Exception as err:
+        print(err)
         print("### Setting up the tree failed")
         sys.exit(1)
     finally:
@@ -174,4 +178,4 @@ elif rebase:
 elif update:
     update_patches()
 else:
-    print("%s [-s|-r|-u]" % sys.argv[0])
+    print("%s [-s|-r]" % sys.argv[0])
