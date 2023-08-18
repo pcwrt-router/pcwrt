@@ -58,7 +58,7 @@ function _get_data(c)
     return {
 	service_name = enabled == '1' and service_name or '',
 	username = c:get(config, section, 'username'),
-	password = unscramble_pwd(c:get(config, section, 'password')),
+	password = c:get(config, section, 'password'),
 	force_interval = combine_time_unit(
 			c:get(config, section, 'force_interval'), 
 			c:get(config, section, 'force_unit')
@@ -119,7 +119,7 @@ function _update(c, v)
     end
 
     c:delete(config, section)
-    cfg.password = scramble_pwd(cfg.password)
+    cfg.password = cfg.password
     c:section(config, 'service', section, cfg)
     success, msg = c:commit(config)
 

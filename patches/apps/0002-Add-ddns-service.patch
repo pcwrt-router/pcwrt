@@ -1,0 +1,1693 @@
+From 012dd7e4029ed5e1fb297d701777b2a9c0fe2c47 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Fri, 18 Aug 2023 13:26:21 -0500
+Subject: [PATCH 2/2] Add ddns-service
+
+---
+ .../network/services/ddns-service/Makefile    |  46 ++
+ .../ddns-service/files/etc/config/ddns        |  19 +
+ .../files/etc/hotplug.d/iface/25-ddns         |   6 +
+ .../ddns-service/files/etc/init.d/ddns        |  17 +
+ .../files/usr/lib/ddns/create_cert_hashes.sh  |  34 +
+ .../usr/lib/ddns/dynamic_dns_deschedule.sh    |  56 ++
+ .../usr/lib/ddns/dynamic_dns_functions.sh     | 744 ++++++++++++++++++
+ .../usr/lib/ddns/dynamic_dns_schedule.sh      | 214 +++++
+ .../files/usr/lib/ddns/dynamic_dns_test.sh    |  35 +
+ .../files/usr/lib/ddns/dynamic_dns_updater.sh | 282 +++++++
+ .../ddns-service/files/usr/lib/ddns/services  |  71 ++
+ .../files/usr/lib/ddns/services_ipv6          |  29 +
+ .../files/usr/lib/ddns/url_escape.sed         |  25 +
+ 13 files changed, 1578 insertions(+)
+ create mode 100644 package/network/services/ddns-service/Makefile
+ create mode 100644 package/network/services/ddns-service/files/etc/config/ddns
+ create mode 100644 package/network/services/ddns-service/files/etc/hotplug.d/iface/25-ddns
+ create mode 100644 package/network/services/ddns-service/files/etc/init.d/ddns
+ create mode 100644 package/network/services/ddns-service/files/usr/lib/ddns/create_cert_hashes.sh
+ create mode 100755 package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_deschedule.sh
+ create mode 100644 package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_functions.sh
+ create mode 100755 package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_schedule.sh
+ create mode 100755 package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_test.sh
+ create mode 100755 package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_updater.sh
+ create mode 100644 package/network/services/ddns-service/files/usr/lib/ddns/services
+ create mode 100644 package/network/services/ddns-service/files/usr/lib/ddns/services_ipv6
+ create mode 100644 package/network/services/ddns-service/files/usr/lib/ddns/url_escape.sed
+
+diff --git a/package/network/services/ddns-service/Makefile b/package/network/services/ddns-service/Makefile
+new file mode 100644
+index 0000000000..dbfecd629b
+--- /dev/null
++++ b/package/network/services/ddns-service/Makefile
+@@ -0,0 +1,46 @@
++include $(TOPDIR)/rules.mk
++
++PKG_NAME:=ddns-service
++PKG_VERSION:=1.0.0
++PKG_RELEASE:=23
++PKG_LICENSE:=GPL-2.0
++
++PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
++
++include $(INCLUDE_DIR)/package.mk
++
++define Package/ddns-service
++	SECTION:=net
++	CATEGORY:=Network
++	TITLE:=Dynamic DNS Scripts
++DEPENDS:=+curl
++	PKGARCH:=all
++	MAINTAINER:=Christian Schoenebeck <christian.schoenebeck@gmail.com>
++endef
++
++define Package/ddns-service/description
++	A highly configurable set of scripts for doing
++	dynamic dns updates
++endef
++
++define Build/Prepare
++endef
++
++define Build/Configure
++endef
++
++define Build/Compile
++endef
++
++define Package/ddns-service/conffiles
++/etc/config/ddns
++endef
++
++define Package/ddns-service/install
++	$(INSTALL_DIR) $(1)
++	$(CP) ./files/* $(1)/
++	$(INSTALL_DIR) $(1)/etc/init.d
++	$(INSTALL_BIN) ./files/etc/init.d/ddns $(1)/etc/init.d/
++endef
++
++$(eval $(call BuildPackage,ddns-service))
+diff --git a/package/network/services/ddns-service/files/etc/config/ddns b/package/network/services/ddns-service/files/etc/config/ddns
+new file mode 100644
+index 0000000000..e4240ceb1f
+--- /dev/null
++++ b/package/network/services/ddns-service/files/etc/config/ddns
+@@ -0,0 +1,19 @@
++config service "wan"
++	option enabled		"0"
++	option interface	"wan"
++	option use_syslog	"1"
++
++	option service_name	"dnsomatic.com"
++	option domain		"myip.opendns.com"
++	option use_https	"1"
++
++	option force_interval	"72"
++	option force_unit	"hours"
++	option check_interval	"10"
++	option check_unit	"minutes"
++	option retry_interval	"60"
++	option retry_unit	"seconds"
++
++	option ip_source	"web"
++	option ip_url		"http://myip.dnsomatic.com/"
++	option dns_server "208.67.222.222"
+diff --git a/package/network/services/ddns-service/files/etc/hotplug.d/iface/25-ddns b/package/network/services/ddns-service/files/etc/hotplug.d/iface/25-ddns
+new file mode 100644
+index 0000000000..bdb1e986fb
+--- /dev/null
++++ b/package/network/services/ddns-service/files/etc/hotplug.d/iface/25-ddns
+@@ -0,0 +1,6 @@
++#!/bin/sh
++if [ "$ACTION" = "ifup" ]; then
++	. /usr/lib/ddns/dynamic_dns_functions.sh
++	/etc/init.d/ddns enabled && schedule_for_all_ddns_sections "$INTERFACE" && /etc/init.d/cron restart
++fi
++
+diff --git a/package/network/services/ddns-service/files/etc/init.d/ddns b/package/network/services/ddns-service/files/etc/init.d/ddns
+new file mode 100644
+index 0000000000..53f0e13716
+--- /dev/null
++++ b/package/network/services/ddns-service/files/etc/init.d/ddns
+@@ -0,0 +1,17 @@
++#!/bin/sh /etc/rc.common
++START=95
++
++boot() {
++	return 0
++}
++
++start() {
++	. /usr/lib/ddns/dynamic_dns_functions.sh
++	schedule_for_all_ddns_sections
++}
++
++stop() {
++	. /usr/lib/ddns/dynamic_dns_functions.sh
++	deschedule_for_all_ddns_sections
++}
++
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/create_cert_hashes.sh b/package/network/services/ddns-service/files/usr/lib/ddns/create_cert_hashes.sh
+new file mode 100644
+index 0000000000..ff788c3759
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/create_cert_hashes.sh
+@@ -0,0 +1,34 @@
++#!/bin/sh
++#
++#set -vx
++
++[ -d /etc/ssl/certs ] || {
++        echo "CA-Certificates not istalled - please install first"
++        exit 1
++}
++
++NUMCERT=$(find /etc/ssl/certs -name *.crt 2>/dev/null | wc -l)
++NUMLINK=$(find /etc/ssl/certs -type l 2>/dev/null | wc -l)
++
++[ $NUMLINK -gt 0 ] && {
++	echo "File-Links already exist. Exiting"
++	exit 0
++}
++
++[ -f /usr/bin/openssl ] && OPENSSL="EXIST"
++[ -z "$OPENSSL" ] && {
++	opkg update || exit 1
++	opkg install openssl-util 2>/dev/null
++}
++
++for CERTFILE in `ls -1 $(1)/etc/ssl/certs`; do \
++	HASH=`openssl x509 -hash -noout -in /etc/ssl/certs/$CERTFILE`
++	SUFFIX=0
++	while [ -h "/etc/ssl/certs/$HASH.$SUFFIX" ]; do
++		let "SUFFIX += 1"
++	done
++	ln -s "$CERTFILE" "/etc/ssl/certs/$HASH.$SUFFIX"
++	echo "link $HASH.$SUFFIX created for $CERTFILE"
++done
++
++[ -z "$OPENSSL" ] && opkg remove --force-remove --autoremove openssl-util 2>/dev/null
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_deschedule.sh b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_deschedule.sh
+new file mode 100755
+index 0000000000..c31a273f31
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_deschedule.sh
+@@ -0,0 +1,56 @@
++#!/bin/sh
++# /usr/lib/ddns/dynamic_dns_updater.sh
++#
++# Original written by Eric Paul Bishop, January 2008
++# Distributed under the terms of the GNU General Public License (GPL) version 2.0
++# (Loosely) based on the script on the one posted by exobyte in the forums here:
++# http://forum.openwrt.org/viewtopic.php?id=14040
++#
++# extended and partial rewritten by Christian Schoenebeck in August 2014 to support:
++# - IPv6 DDNS services
++# - DNS Server to retrieve registered IP including TCP transport
++# - Proxy Server to send out updates
++# - force_interval=0 to run once
++# - the usage of BIND's host command instead of BusyBox's nslookup if installed
++# - extended Verbose Mode and log file support for better error detection 
++#
++# variables in small chars are read from /etc/config/ddns
++# variables in big chars are defined inside these scripts as global vars
++# variables in big chars beginning with "__" are local defined inside functions only
++#set -vx  	#script debugger
++
++CRONTAB=/etc/crontabs/root
++PROG=/usr/lib/ddns/dynamic_dns_updater.sh
++
++[ $# -lt 1 -o -n "${2//[0-3]/}" -o ${#2} -gt 1 ] && {
++	echo -e "\n  USAGE:"
++	echo -e "  $0 [SECTION] [VERBOSE_MODE]\n"
++	echo    "  [SECTION]      - service section as defined in /etc/config/ddns"
++	echo    "  [VERBOSE_MODE] - '0' NO output to console"
++	echo    "                   '1' output to console"
++	echo    "                   '2' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo    "                   '3' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo -e "                       + NOT sending update to DDNS service\n"
++	exit 1
++}
++
++. /usr/lib/ddns/dynamic_dns_functions.sh	# global vars are also defined here
++
++SECTION_ID="$1"
++VERBOSE_MODE=${2:-1}	#default mode is log to console
++
++if [ -f $CRONTAB ]; then
++    grep -v "$PROG $SECTION_ID" $CRONTAB >/tmp/crontab.tmp
++    if [ ! -s "/tmp/crontab.tmp" ]; then
++	rm $CRONTAB
++	rm /tmp/crontab.tmp
++    else
++	mv -f /tmp/crontab.tmp $CRONTAB
++    fi
++fi
++
++syslog_info "De-scheduled ddns job"
++
++exit 0
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_functions.sh b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_functions.sh
+new file mode 100644
+index 0000000000..c413895d2c
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_functions.sh
+@@ -0,0 +1,744 @@
++#!/bin/sh
++# /usr/lib/ddns/dynamic_dns_functions.sh
++#
++# Original written by Eric Paul Bishop, January 2008
++# Distributed under the terms of the GNU General Public License (GPL) version 2.0
++# (Loosely) based on the script on the one posted by exobyte in the forums here:
++# http://forum.openwrt.org/viewtopic.php?id=14040
++#
++# extended and partial rewritten by Christian Schoenebeck in August 2014 to support:
++# - IPv6 DDNS services
++# - setting DNS Server to retrieve current IP including TCP transport
++# - Proxy Server to send out updates or retrieving WEB based IP detection
++# - force_interval=0 to run once (usefull for cron jobs etc.)
++# - the usage of BIND's host instead of BusyBox's nslookup if installed (DNS via TCP)
++# - extended Verbose Mode and log file support for better error detection 
++#
++# function __timeout
++# copied from http://www.ict.griffith.edu.au/anthony/software/timeout.sh
++# @author Anthony Thyssen  6 April 2011
++#
++# variables in small chars are read from /etc/config/ddns
++# variables in big chars are defined inside these scripts as global vars
++# variables in big chars beginning with "__" are local defined inside functions only
++#set -vx  	#script debugger
++
++. /lib/functions.sh
++. /lib/functions/network.sh
++
++# GLOBAL VARIABLES #
++SECTION_ID=""		# hold config's section name
++VERBOSE_MODE=1		# default mode is log to console, but easily changed with parameter
++LUCI_HELPER=""		# set by dynamic_dns_lucihelper.sh, if filled supress all error logging
++
++PIDFILE=""		# pid file
++UPDFILE=""		# store UPTIME of last update
++
++# directory to store run information to. 
++RUNDIR=$(uci -q get ddns.global.run_dir) || RUNDIR="/var/run/ddns"
++# NEW # directory to store log files
++LOGDIR=$(uci -q get ddns.global.log_dir) || LOGDIR="/var/log/ddns"
++LOGFILE=""		# NEW # logfile can be enabled as new option
++# number of lines to before rotate logfile
++LOGLINES=$(uci -q get ddns.global.log_lines) || LOGLINES=250
++
++CHECK_SECONDS=0		# calculated seconds out of given
++FORCE_SECONDS=0		# interval and unit
++RETRY_SECONDS=0		# in configuration
++
++OLD_PID=0		# Holds the PID of already running process for the same config section
++
++LAST_TIME=0		# holds the uptime of last successful update
++CURR_TIME=0		# holds the current uptime
++NEXT_TIME=0		# calculated time for next FORCED update
++EPOCH_TIME=0		# seconds since 1.1.1970 00:00:00
++
++REGISTERED_IP=""	# holds the IP read from DNS
++LOCAL_IP=""		# holds the local IP read from the box
++
++ERR_LAST=0		# used to save $? return code of program and function calls
++ERR_LOCAL_IP=0		# error counter on getting local ip
++ERR_REG_IP=0		# error counter on getting DNS registered ip
++ERR_SEND=0		# error counter on sending update to DNS provider
++ERR_UPDATE=0		# error counter on different local and registered ip
++
++# format to show date information in log and luci-app-ddns default ISO 8601 format
++DATE_FORMAT=$(uci -q get ddns.global.date_format) || DATE_FORMAT="%F %R"
++DATE_PROG="date +'$DATE_FORMAT'"
++
++# regular expression to detect IPv4 / IPv6
++# IPv4       0-9   1-3x "." 0-9  1-3x "." 0-9  1-3x "." 0-9  1-3x
++IPV4_REGEX="[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}"
++# IPv6       ( ( 0-9a-f  1-4char ":") min 1x) ( ( 0-9a-f  1-4char   )optional) ( (":" 0-9a-f 1-4char  ) min 1x)
++IPV6_REGEX="\(\([0-9A-Fa-f]\{1,4\}:\)\{1,\}\)\(\([0-9A-Fa-f]\{1,4\}\)\{0,1\}\)\(\(:[0-9A-Fa-f]\{1,4\}\)\{1,\}\)"
++
++# loads all options for a given package and section
++# also, sets all_option_variables to a list of the variable names
++# $1 = ddns, $2 = SECTION_ID
++load_all_config_options()
++{
++	local __PKGNAME="$1"
++	local __SECTIONID="$2"
++	local __VAR
++	local __ALL_OPTION_VARIABLES=""
++
++	# this callback loads all the variables in the __SECTIONID section when we do
++	# config_load. We need to redefine the option_cb for different sections
++	# so that the active one isn't still active after we're done with it.  For reference
++	# the $1 variable is the name of the option and $2 is the name of the section
++	config_cb()
++	{
++		if [ ."$2" = ."$__SECTIONID" ]; then
++			option_cb()
++			{
++				__ALL_OPTION_VARIABLES="$__ALL_OPTION_VARIABLES $1"
++			}
++		else
++			option_cb() { return 0; }
++		fi
++	}
++
++	config_load "$__PKGNAME"
++	
++	# Given SECTION_ID not found so no data, so return 1
++	[ -z "$__ALL_OPTION_VARIABLES" ] && return 1
++
++	for __VAR in $__ALL_OPTION_VARIABLES
++	do
++		config_get "$__VAR" "$__SECTIONID" "$__VAR"
++	done
++	return 0
++}
++
++# starts updater script for all given sections or only for the one given
++# $1 = interface (Optional: when given only scripts are started
++# configured for that interface)
++schedule_for_all_ddns_sections()
++{
++	local __EVENTIF="$1"
++	local __SECTIONS=""
++	local __SECTIONID=""
++	local __IFACE=""
++
++	config_cb() 
++	{
++		# only look for section type "service", ignore everything else
++		[ "$1" == "service" ] && __SECTIONS="$__SECTIONS $2"
++	}
++	config_load "ddns"
++
++	for __SECTIONID in $__SECTIONS
++	do
++		config_get __IFACE "$__SECTIONID" interface "wan"
++		[ -z "$__EVENTIF" -o "$__IFACE" = "$__EVENTIF" ] || continue
++		/usr/lib/ddns/dynamic_dns_schedule.sh $__SECTIONID 0 > /dev/null 2>&1
++	done
++}
++
++deschedule_for_all_ddns_sections()
++{
++	local __EVENTIF="$1"
++	local __SECTIONS=""
++	local __SECTIONID=""
++	local __IFACE=""
++
++	config_cb() 
++	{
++		# only look for section type "service", ignore everything else
++		[ "$1" == "service" ] && __SECTIONS="$__SECTIONS $2"
++	}
++	config_load "ddns"
++
++	for __SECTIONID in $__SECTIONS
++	do
++		config_get __IFACE "$__SECTIONID" interface "wan"
++		[ -z "$__EVENTIF" -o "$__IFACE" = "$__EVENTIF" ] || continue
++		/usr/lib/ddns/dynamic_dns_deschedule.sh $__SECTIONID 0 > /dev/null 2>&1
++	done
++}
++
++verbose_echo()
++{
++    local lvl="$1"
++    shift
++	[ -n "$LUCI_HELPER" ] && return	# nothing to report when used by LuCI helper script
++	[ $VERBOSE_MODE -gt 0 ] && echo -e " $*"
++	if [ ${use_logfile:-0} -eq 1 -o $VERBOSE_MODE -gt 1 ]; then
++		[ -d $LOGDIR ] || mkdir -p -m 755 $LOGDIR
++
++		if [ $VERBOSE_MODE -ge $lvl ]; then
++		    echo -e " $*" >> $LOGFILE
++		    # VERBOSE_MODE > 1 then NO loop so NO truncate log to $LOGLINES lines
++		    [ $VERBOSE_MODE -gt 1 ] || sed -i -e :a -e '$q;N;'$LOGLINES',$D;ba' $LOGFILE
++		fi
++	fi
++	return
++}
++
++syslog_info(){
++	[ $use_syslog -eq 1 ] && logger -p user.info -t ddns-scripts[$$] "$SECTION_ID: $*"
++	return
++}
++syslog_notice(){
++	[ $use_syslog -ge 1 -a $use_syslog -le 2 ] && logger -p user.notice -t ddns-scripts[$$] "$SECTION_ID: $*"
++	return
++}
++syslog_warn(){
++	[ $use_syslog -ge 1 -a $use_syslog -le 3 ] && logger -p user.warn -t ddns-scripts[$$] "$SECTION_ID: $*"
++	return
++}
++syslog_err(){
++	[ $use_syslog -ge 1 ] && logger -p user.err -t ddns-scripts[$$] "$SECTION_ID: $*"
++	return
++}
++
++critical_error() {
++	[ -n "$LUCI_HELPER" ] && return	# nothing to report when used by LuCI helper script
++	verbose_echo "-1" "\n CRITICAL ERROR =: $* - EXITING\n"
++	[ $VERBOSE_MODE -eq 0 ] && echo -e "\n$SECTION_ID: CRITICAL ERROR - $* - EXITING\n"
++	logger -t ddns-scripts[$$] -p user.crit "$SECTION_ID: CRITICAL ERROR - $* - EXITING"
++	exit 3		# critical error -> leave here
++}
++
++# extract update_url for given DDNS Provider from
++# file /usr/lib/ddns/services for IPv4 or from
++# file /usr/lib/ddns/services_ipv6 for IPv6
++get_service_url() {
++	# $1	Name of Variable to store url to
++	local __LINE __FILE __NAME __URL __SERVICES
++	local __OLD_IFS=$IFS
++	local __NEWLINE_IFS='
++' #__NEWLINE_IFS
++
++	__FILE="/usr/lib/ddns/services"					# IPv4
++	[ $use_ipv6 -ne 0 ] && __FILE="/usr/lib/ddns/services_ipv6"	# IPv6
++
++	#remove any lines not containing data, and then make sure fields are enclosed in double quotes
++	__SERVICES=$(cat $__FILE | grep "^[\t ]*[^#]" | \
++		awk ' gsub("\x27", "\"") { if ($1~/^[^\"]*$/) $1="\""$1"\"" }; { if ( $NF~/^[^\"]*$/) $NF="\""$NF"\""  }; { print $0 }')
++
++	IFS=$__NEWLINE_IFS
++	for __LINE in $__SERVICES
++	do
++		#grep out proper parts of data and use echo to remove quotes
++		__NAME=$(echo $__LINE | grep -o "^[\t ]*\"[^\"]*\"" | xargs -r -n1 echo)
++		__URL=$(echo $__LINE | grep -o "\"[^\"]*\"[\t ]*$" | xargs -r -n1 echo)
++
++		if [ "$__NAME" = "$service_name" ]; then
++			break			# found so leave for loop
++		fi
++	done
++	IFS=$__OLD_IFS
++	
++	eval "$1='$__URL'"
++	return 0
++}
++
++get_seconds() {
++	# $1	Name of Variable to store result in
++	# $2	Number and
++	# $3	Unit of time interval
++	case "$3" in
++		"days" )	eval "$1=$(( $2 * 86400 ))";;
++		"hours" )	eval "$1=$(( $2 * 3600 ))";;
++		"minutes" )	eval "$1=$(( $2 * 60 ))";;
++		* )		eval "$1=$2";;
++	esac
++	return 0
++}
++
++__timeout() {
++	# copied from http://www.ict.griffith.edu.au/anthony/software/timeout.sh
++	# only did the folloing changes
++	#	- commented out "#!/bin/bash" and usage section
++	#	- replace exit by return for usage as function
++	#	- some reformating
++	#
++	# timeout [-SIG] time [--] command args...
++	#
++	# Run the given command until completion, but kill it if it runs too long.
++	# Specifically designed to exit immediatally (no sleep interval) and clean up
++	# nicely without messages or leaving any extra processes when finished.
++	#
++	# Example use
++	#    timeout 5 countdown
++	#
++	###
++	#
++	# Based on notes in my "Shell Script Hints", section "Command Timeout"
++	#   http://www.ict.griffith.edu.au/~anthony/info/shell/script.hints
++	#
++	# This script uses a lot of tricks to terminate both the background command,
++	# the timeout script, and even the sleep process.  It also includes trap
++	# commands to prevent sub-shells reporting expected "Termination Errors".
++	#
++	# It took years of occasional trials, errors and testing to get a pure bash
++	# timeout command working as well as this does.
++	#
++	###
++	#
++	# Anthony Thyssen     6 April 2011
++	#
++#	PROGNAME=$(type $0 | awk '{print $3}')	# search for executable on path
++#	PROGDIR=$(dirname $PROGNAME)		# extract directory of program
++#	PROGNAME=$(basename $PROGNAME)		# base name of program
++
++	# output the script comments as docs
++#	Usage() {
++#		echo >&2 "$PROGNAME:" "$@"
++#		sed >&2 -n '/^###/q; /^#/!q; s/^#//; s/^ //; 3s/^/Usage: /; 2,$ p' "$PROGDIR/$PROGNAME"
++#		exit 10;
++#	}
++
++	SIG=-TERM
++
++	while [  $# -gt 0 ]; do
++		case "$1" in
++			--)
++				# forced end of user options
++				shift;
++				break ;;
++#			-\?|--help|--doc*)
++#				Usage ;;
++			[0-9]*)
++				TIMEOUT="$1" ;;
++			-*)
++				SIG="$1" ;;
++			*)
++				# unforced  end of user options
++				break ;;
++		esac
++		shift	# next option
++	done
++
++	# run main command in backgrouds and get its pid
++	"$@" &
++	command_pid=$!
++
++	# timeout sub-process abort countdown after ABORT seconds! also backgrounded
++	sleep_pid=0
++	(
++		# cleanup sleep process
++		trap 'kill -TERM $sleep_pid; return 1' 1 2 3 15
++		# sleep timeout period in background
++		sleep $TIMEOUT &
++		sleep_pid=$!
++		wait $sleep_pid
++		# Abort the command
++		kill $SIG $command_pid >/dev/null 2>&1
++		return 1
++	) &
++	timeout_pid=$!
++
++	# Wait for main command to finished or be timed out
++	wait $command_pid
++	status=$?
++
++	# Clean up timeout sub-shell - if it is still running!
++	kill $timeout_pid 2>/dev/null
++	wait $timeout_pid 2>/dev/null
++
++	# Uncomment to check if a LONG sleep still running (no sleep should be)
++	# sleep 1
++	# echo "-----------"
++	# /bin/ps j  # uncomment to show if abort "sleep" is still sleeping
++
++	return $status
++}
++
++__verify_host_port() {
++	# $1	Host/IP to verify
++	# $2	Port to verify
++	local __HOST=$1
++	local __PORT=$2
++	local __TMP __IP __IPV4 __IPV6 __RUNPROG __ERRPROG __ERR
++	# return codes
++	# 1	system specific error
++	# 2	nslookup error
++	# 3	nc (netcat) error
++	# 4	unmatched IP version
++
++	__RUNPROG="nslookup $__HOST $dns_server 2>/dev/null"
++	__ERRPROG="nslookup $__HOST $dns_server 2>&1"
++	verbose_echo "0" " resolver prog =: '$__RUNPROG'"
++	__TMP=$(eval $__RUNPROG)	# test if nslookup runs without errors
++	__ERR=$?
++	# command error
++	[ $__ERR -gt 0 ] && {
++		verbose_echo "-1" "\n!!!!!!!!! ERROR =: BusyBox nslookup Error '$__ERR'\n$(eval $__ERRPROG)\n"
++		syslog_err "DNS Resolver Error - BusyBox nslookup Error: '$__ERR'"
++		return 2
++	} || {
++		# we need to run twice because multi-line output needs to be directly piped to grep because
++		# pipe returns return code of last prog in pipe but we need errors from nslookup command
++		__IPV4=$(eval $__RUNPROG | sed '1,2d' | grep -o "Name:\|Address.*" | grep -m 1 -o "$IPV4_REGEX")
++		__IPV6=$(eval $__RUNPROG | sed '1,2d' | grep -o "Name:\|Address.*" | grep -m 1 -o "$IPV6_REGEX")
++	}
++
++	# check IP version if forced
++	if [ $force_ipversion -ne 0 ]; then
++		[ $use_ipv6 -eq 0 -a -z "$__IPV4" ] && return 4
++		[ $use_ipv6 -eq 1 -a -z "$__IPV6" ] && return 4
++	fi
++
++	# verify nc command
++	# busybox nc compiled without -l option "NO OPT l!" -> critical error
++	nc --help 2>&1 | grep -iq "NO OPT l!" && \
++		critical_error "Busybox nc: netcat compiled with errors"
++	# busybox nc compiled with extensions
++	nc --help 2>&1 | grep -q "\-w" && __NCEXT="TRUE"
++
++	# connectivity test
++	# run busybox nc to HOST PORT
++	# busybox might be compiled with "FEATURE_PREFER_IPV4_ADDRESS=n"
++	# then nc will try to connect via IPv6 if there is an IPv6 availible for host
++	# not worring if there is an IPv6 wan address
++	# so if not "forced_ipversion" to use ipv6 then connect test via ipv4 if availible
++	[ $force_ipversion -ne 0 -a $use_ipv6 -ne 0 -o -z "$__IPV4" ] && {
++		# force IPv6
++		__IP=$__IPV6
++	} || __IP=$__IPV4
++
++	if [ -n "$__NCEXT" ]; then	# nc compiled with extensions (timeout support)
++		__RUNPROG="nc -w 1 $__IP $__PORT </dev/null >/dev/null 2>&1"
++		__ERRPROG="nc -vw 1 $__IP $__PORT </dev/null 2>&1"
++		verbose_echo "0" "  connect prog =: '$__RUNPROG'"
++		eval $__RUNPROG
++		__ERR=$?
++		[ $__ERR -eq 0 ] && return 0
++		verbose_echo "-1" "\n!!!!!!!!! ERROR =: BusyBox nc Error '$__ERR'\n$(eval $__ERRPROG)\n"
++		syslog_err "host verify Error - BusyBox nc Error: '$__ERR'"
++		return 3
++	else		# nc compiled without extensions (no timeout support)
++		__RUNPROG="__timeout 2 -- nc $__IP $__PORT </dev/null >/dev/null 2>&1"
++		verbose_echo "0" "  connect prog =: '$__RUNPROG'"
++		eval $__RUNPROG
++		__ERR=$?
++		[ $__ERR -eq 0 ] && return 0
++		verbose_echo "-1" "\n!!!!!!!!! ERROR =: BusyBox nc Error '$__ERR' (timeout)"
++		syslog_err "host verify Error - BusyBox nc Error: '$__ERR' (timeout)"
++		return 3
++	fi
++}
++
++verify_dns() {
++	# $1	DNS server to verify
++	# we need DNS server to verify otherwise exit with ERROR 1
++	[ -z "$1" ] && return 1
++
++	# DNS uses port 53
++	__verify_host_port "$1" "53"
++}
++
++verify_proxy() {
++	# $1	Proxy-String to verify
++	#		complete entry		user:password@host:port
++	#		host and port only	host:port
++	#		host only		host		unsupported
++	#		IPv4 address instead of host	123.234.234.123
++	#		IPv6 address instead of host	[xxxx:....:xxxx]	in square bracket
++	local __TMP __HOST __PORT
++
++	# we need Proxy-Sting to verify otherwise exit with ERROR 1
++	[ -z "$1" ] && return 1
++
++	# try to split user:password "@" host:port
++	__TMP=$(echo $1 | awk -F "@" '{print $2}')
++	# no "@" found - only host:port is given
++	[ -z "$__TMP" ] && __TMP="$1"
++	# now lets check for IPv6 address
++	__HOST=$(echo $__TMP | grep -m 1 -o "$IPV6_REGEX")
++	# IPv6 host address found read port
++	if [ -n "$__HOST" ]; then
++		# IPv6 split at "]:"
++		__PORT=$(echo $__TMP | awk -F "]:" '{print $2}')
++	else
++		__HOST=$(echo $__TMP | awk -F ":" '{print $1}')
++		__PORT=$(echo $__TMP | awk -F ":" '{print $2}')
++	fi
++	# No Port detected ERROR 5
++	[ -z "$__PORT" ] && return 5
++
++	__verify_host_port "$__HOST" "$__PORT"
++}
++
++__do_transfer() {
++	# $1	# Variable to store Answer of transfer
++	# $2	# URL to use
++	local __URL="$2"
++	local __ERR=0
++	local __PROG  __RUNPROG  __ERRPROG  __DATA
++
++	# lets prefer GNU Wget because it does all for us - IPv4/IPv6/HTTPS/PROXY/force IP version
++	if /usr/bin/wget --version 2>&1 | grep -q "+ssl"; then
++		__PROG="/usr/bin/wget -t 2 -O -"	# standard output only 2 retrys on error
++		# force ip version to use
++		if [ $force_ipversion -eq 1 ]; then	
++			[ $use_ipv6 -eq 0 ] && __PROG="$__PROG -4" || __PROG="$__PROG -6"	# force IPv4/IPv6
++		fi
++		# set certificate parameters
++		if [ $use_https -eq 1 ]; then
++			__PROG="$__PROG "
++		fi
++		# disable proxy if no set (there might be .wgetrc or .curlrc or wrong environment set)
++		[ -z "$proxy" ] && __PROG="$__PROG --no-proxy"
++
++		__RUNPROG="$__PROG -q '$__URL' 2>/dev/null"	# do transfer with "-q" to suppress not needed output
++		__ERRPROG="$__PROG -d '$__URL' 2>&1"		# do transfer with "-d" for debug mode
++		verbose_echo "0" " transfer prog =: $__RUNPROG"
++		__DATA=$(eval $__RUNPROG)
++		__ERR=$?
++		[ $__ERR -gt 0 ] && {
++			# verbose_echo "-1" "\n!!!!!!!!! ERROR =: GNU Wget Error '$__ERR'\n$(eval $__ERRPROG)\n"
++			syslog_err "Communication Error - GNU Wget Error: '$__ERR'"
++			[ $__ERR -eq 6 ] && { # Username/password authentication failure.
++			    eval "$1=badauth"
++			    return 0
++			}
++
++			return 1
++		}
++
++	# 2nd choice is cURL IPv4/IPv6/HTTPS
++	# libcurl might be compiled without Proxy Support (default in trunk)
++	elif [ -x /usr/bin/curl ]; then
++		__PROG="/usr/bin/curl -m 15"
++		# force ip version to use
++		if [ "$force_ipversion" = "1" ]; then
++			[ $use_ipv6 -eq 0 ] && __PROG="$__PROG -4" || __PROG="$__PROG -6"	# force IPv4/IPv6
++		fi
++		# set certificate parameters
++		if [ "$use_https" = "1" ]; then
++			__PROG="$__PROG "	# but not empty better to use "IGNORE"
++		fi
++		# disable proxy if no set (there might be .wgetrc or .curlrc or wrong environment set)
++		# or check if libcurl compiled with proxy support
++		if [ -z "$proxy" ]; then
++			__PROG="$__PROG --noproxy '*'"
++		else
++			# if libcurl has no proxy support and proxy should be used then force ERROR
++			# libcurl currently no proxy support by default
++			grep -iq all_proxy /usr/lib/libcurl.so* || \
++				critical_error "cURL: libcurl compiled without Proxy support"
++		fi
++
++		local wanip
++		network_get_ipaddr wanip $interface
++
++		__RUNPROG="$__PROG --interface $wanip -q '$__URL' 2>/dev/null"	# do transfer with "-s" to suppress not needed output
++		__ERRPROG="$__PROG --interface $wanip -v '$__URL' 2>&1"		# do transfer with "-v" for verbose mode
++		verbose_echo "0" " transfer prog =: $__RUNPROG"
++		__DATA=$(eval $__RUNPROG)
++		__ERR=$?
++		[ $__ERR -gt 0 ] && {
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: cURL Error '$__ERR'\n$(eval $__ERRPROG)\n"
++			syslog_err "Communication Error - cURL Error: '$__ERR'"
++			return 1
++		}
++
++	# busybox Wget (did not support neither IPv6 nor HTTPS)
++	elif [ -x /usr/bin/wget ]; then
++		__PROG="/usr/bin/wget -O -"
++		# force ip version not supported
++		[ $force_ipversion -eq 1 ] && \
++			critical_error "BusyBox Wget: can not force IP version to use"
++		# https not supported
++		[ $use_https -eq 1 ] && \
++			critical_error "BusyBox Wget: no HTTPS support"
++		# disable proxy if no set (there might be .wgetrc or .curlrc or wrong environment set)
++		[ -z "$proxy" ] && __PROG="$__PROG -Y off"
++		
++		__RUNPROG="$__PROG -q '$__URL' 2>/dev/null"	# do transfer with "-q" to suppress not needed output
++		__ERRPROG="$__PROG '$__URL' 2>&1"
++		verbose_echo "0" " transfer prog =: $__RUNPROG"
++		__DATA=$(eval $__RUNPROG)
++		__ERR=$?
++		[ $__ERR -gt 0 ] && {
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: BusyBox Wget Error '$__ERR'\n$(eval $__ERRPROG)\n"
++			syslog_err "Communication Error - BusyBox Wget Error: '$__ERR'"
++			return 1
++		}
++
++	else
++		critical_error "Program not found - Neither 'Wget' nor 'cURL' installed or executable"
++	fi
++
++	eval "$1='$__DATA'"
++	return 0
++}
++
++send_update() {
++	# $1	# IP to set at DDNS service provider
++	local __IP __URL __ANSWER __ERR
++
++	# verify given IP
++	[ $use_ipv6 -eq 0 ] && __IP=$(echo $1 | grep -v -E "(^0|^10\.|^100\.6[4-9]\.|^100\.[7-9][0-9]\.|^100\.1[0-1][0-9]\.|^100\.12[0-7]\.|^127|^169\.254|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-1]\.|^192\.168)") # no private IPv4's
++	[ $use_ipv6 -eq 1 ] && __IP=$(echo $1 | grep "^[0-9a-eA-E]")	# no IPv6 addr starting with fxxx of with ":"
++	[ -z "$__IP" ] && critical_error "Invalid or no IP '$1' given"
++
++	# do replaces in URL
++	uname=`echo $username | sed -f /usr/lib/ddns/url_escape.sed`
++	[ ${#password} -eq 64 ] && password=`/usr/bin/encryptor $password 2>/dev/null`
++	passwd=`echo $password | sed -f /usr/lib/ddns/url_escape.sed`
++	__URL=$(echo $update_url | sed -e "s#\[USERNAME\]#$uname#g" -e "s#\[PASSWORD\]#$passwd#g" \
++				       -e "s#\[DOMAIN\]#$domain#g" -e "s#\[IP\]#$__IP#g")
++	[ $use_https -ne 0 ] && __URL=$(echo $__URL | sed -e 's#^http:#https:#')
++
++	__do_transfer __ANSWER "$__URL"
++	__ERR=$?
++	[ $__ERR -gt 0 ] && {
++		verbose_echo "-1" "\n!!!!!!!!! ERROR =: Error sending update to DDNS Provider\n"
++		return 1
++	}
++
++	verbose_echo "-1" "   update send =: DDNS Provider answered\n$__ANSWER"
++
++	case $__ANSWER in
++	    good*)
++		return 0
++		;;
++	    *)
++		return 2
++		;;
++	esac
++}
++
++get_local_ip () {
++	# $1	Name of Variable to store local IP (LOCAL_IP)
++	local __RUNPROG __IP __URL __ANSWER
++
++	case $ip_source in
++		network )
++			# set correct program
++			[ $use_ipv6 -eq 0 ] && __RUNPROG="network_get_ipaddr" \
++					    || __RUNPROG="network_get_ipaddr6"
++			$__RUNPROG __IP "$ip_network"
++			verbose_echo "0" "      local ip =: '$__IP' detected on network '$ip_network'"
++			;;
++		interface )
++			if [ $use_ipv6 -eq 0 ]; then
++				__IP=$(ifconfig $ip_interface | awk '
++					/Bcast.*Mask/ {	# Filter IPv4
++					#   inet addr:192.168.10.1 Bcast:192.168.10.255  Mask:255.255.255.0
++					$1="";		# remove inet
++					$3="";		# remove Bcast: ...
++					$4="";		# remove Mask: ...
++					FS=":";		# separator ":"
++					$0=$0;		# reread to activate separator
++					$1="";		# remove addr
++					FS=" ";		# set back separator to default " "
++					$0=$0;		# reread to activate separator (remove whitespaces)
++					print $1;	# print IPv4 addr
++					}'
++				)
++			else
++				__IP=$(ifconfig $ip_interface | awk '
++					/inet6/ && /: [0-9a-eA-E]/ && !/\/128/ {	# Filter IPv6 exclude fxxx and /128 prefix
++					#   inet6 addr: 2001:db8::xxxx:xxxx/32 Scope:Global
++					FS="/";		# separator "/"
++					$0=$0;		# reread to activate separator
++					$2="";		# remove everything behind "/"
++					FS=" ";		# set back separator to default " "
++					$0=$0;		# reread to activate separator
++					print $3;	# print IPv6 addr
++					}'
++				)
++			fi
++			verbose_echo "0" "      local ip =: '$__IP' detected on interface '$ip_interface'"
++			;;
++		script )
++			# get ip from script
++			__IP=$($ip_script)
++			verbose_echo "0" "      local ip =: '$__IP' detected via script '$ip_script'"
++			;;
++		* )
++			for __URL in $ip_url; do
++				__do_transfer __ANSWER "$__URL"
++				[ -n "$__ANSWER" ] && break	# Answer detected, leave for loop
++			done
++			# use correct regular expression
++			[ $use_ipv6 -eq 0 ] \
++				&& __IP=$(echo "$__ANSWER" | grep -m 1 -o "$IPV4_REGEX") \
++				|| __IP=$(echo "$__ANSWER" | grep -m 1 -o "$IPV6_REGEX")
++			verbose_echo "0" "      local ip =: '$__IP' detected via web at '$__URL'"
++			;;
++	esac
++
++	# if NO IP was found
++	[ -z "$__IP" ] && return 1
++
++	eval "$1='$__IP'"
++	return 0
++}
++
++get_registered_ip() {
++	# $1	Name of Variable to store public IP (REGISTERED_IP)
++	local __IP  __REGEX  __PROG  __RUNPROG  __ERRPROG  __ERR
++	# return codes
++	# 1	no IP detected
++
++	# set correct regular expression
++	[ $use_ipv6 -eq 0 ] && __REGEX="$IPV4_REGEX" || __REGEX="$IPV6_REGEX"
++
++	if [ -x /usr/bin/host ]; then		# otherwise try to use BIND host
++		__PROG="/usr/bin/host"
++		[ $use_ipv6 -eq 0 ] && __PROG="$__PROG -t A"  || __PROG="$__PROG -t AAAA"
++		if [ $force_ipversion -eq 1 ]; then			# force IP version
++			[ $use_ipv6 -eq 0 ] && __PROG="$__PROG -4"  || __PROG="$__PROG -6"
++		fi			
++		[ $force_dnstcp -eq 1 ] && __PROG="$__PROG -T"	# force TCP
++
++		__RUNPROG="$__PROG $domain $dns_server 2>/dev/null"
++		__ERRPROG="$__PROG -v $domain $dns_server 2>&1"
++		verbose_echo "0" " resolver prog =: $__RUNPROG"
++		__IP=$(eval $__RUNPROG)
++		__ERR=$?
++		# command error
++		[ $__ERR -gt 0 ] && {
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: BIND host Error '$__ERR'\n$(eval $__ERRPROG)\n"
++			syslog_err "DNS Resolver Error - BIND host Error: '$__ERR'"
++			return 1
++		} || {
++			# we need to run twice because multi-line output needs to be directly piped to grep because
++			# pipe returns return code of last prog in pipe but we need errors from host command
++			__IP=$(eval $__RUNPROG | awk -F "address " '/has/ {print $2; exit}' )
++		}
++
++	elif [ -x /usr/bin/nslookup ]; then	# last use BusyBox nslookup
++		[ $force_ipversion -ne 0 -o $force_dnstcp -ne 0 ] && \
++			critical_error "nslookup - no support to 'force IP Version' or 'DNS over TCP'"
++
++		__RUNPROG="nslookup $domain $dns_server 2>/dev/null"
++		__ERRPROG="nslookup $domain $dns_server 2>&1"
++		verbose_echo "0" " resolver prog =: $__RUNPROG"
++		__IP=$(eval $__RUNPROG)
++		__ERR=$?
++		# command error
++		[ $__ERR -gt 0 ] && {
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: BusyBox nslookup Error '$__ERR'\n$(eval $__ERRPROG)\n"
++			syslog_err "DNS Resolver Error - BusyBox nslookup Error: '$__ERR'"
++			return 1
++		} || {
++			# we need to run twice because multi-line output needs to be directly piped to grep because
++			# pipe returns return code of last prog in pipe but we need errors from nslookup command
++			__IP=$(eval $__RUNPROG | sed -ne "3,\$ { s/^Address [0-9]*: \($__REGEX\).*$/\\1/p }" )
++		}
++
++	else					# there must be an error
++		critical_error "No program found to request public registered IP"
++	fi
++
++	verbose_echo "0" "   resolved ip =: '$__IP'"
++
++	# if NO IP was found
++	[ -z "$__IP" ] && return 1
++
++	eval "$1='$__IP'"
++	return 0
++}
++
++get_uptime() {
++	# $1	Variable to store result in
++	local __UPTIME=$(cat /proc/uptime)
++	eval "$1='${__UPTIME%%.*}'"
++}
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_schedule.sh b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_schedule.sh
+new file mode 100755
+index 0000000000..22f95e234b
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_schedule.sh
+@@ -0,0 +1,214 @@
++#!/bin/sh
++# /usr/lib/ddns/dynamic_dns_updater.sh
++#
++# Original written by Eric Paul Bishop, January 2008
++# Distributed under the terms of the GNU General Public License (GPL) version 2.0
++# (Loosely) based on the script on the one posted by exobyte in the forums here:
++# http://forum.openwrt.org/viewtopic.php?id=14040
++#
++# extended and partial rewritten by Christian Schoenebeck in August 2014 to support:
++# - IPv6 DDNS services
++# - DNS Server to retrieve registered IP including TCP transport
++# - Proxy Server to send out updates
++# - force_interval=0 to run once
++# - the usage of BIND's host command instead of BusyBox's nslookup if installed
++# - extended Verbose Mode and log file support for better error detection 
++#
++# variables in small chars are read from /etc/config/ddns
++# variables in big chars are defined inside these scripts as global vars
++# variables in big chars beginning with "__" are local defined inside functions only
++#set -vx  	#script debugger
++
++CRONTAB=/etc/crontabs/root
++PROG=/usr/lib/ddns/dynamic_dns_updater.sh
++
++[ $# -lt 1 -o -n "${2//[0-3]/}" -o ${#2} -gt 1 ] && {
++	echo -e "\n  USAGE:"
++	echo -e "  $0 [SECTION] [VERBOSE_MODE]\n"
++	echo    "  [SECTION]      - service section as defined in /etc/config/ddns"
++	echo    "  [VERBOSE_MODE] - '0' NO output to console"
++	echo    "                   '1' output to console"
++	echo    "                   '2' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo    "                   '3' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo -e "                       + NOT sending update to DDNS service\n"
++	exit 1
++}
++
++. /usr/lib/ddns/dynamic_dns_functions.sh	# global vars are also defined here
++
++SECTION_ID="$1"
++VERBOSE_MODE=${2:-1}	#default mode is log to console
++
++# set file names
++LOGFILE="$LOGDIR/$SECTION_ID.log"	# log file
++
++# VERBOSE_MODE > 1 delete logfile if exist to create an empty one
++# only with this data of this run for easier diagnostic
++# new one created by verbose_echo function
++[ $VERBOSE_MODE -gt 1 -a -f $LOGFILE ] && rm -f $LOGFILE
++
++################################################################################
++# Leave this comment here, to clearly document variable names that are expected/possible
++# Use load_all_config_options to load config options, which is a much more flexible solution.
++#
++# config_load "ddns"
++# config_get <variable> $SECTION_ID <option]>
++#
++# defined options (also used as variable):
++# 
++# enable	self-explanatory
++# interface 	network interface used by hotplug.d i.e. 'wan' or 'wan6'
++#
++# service_name	Which DDNS service do you use or "custom"
++# update_url	URL to use to update your "custom" DDNS service
++#
++# domain 	Your DNS name / replace [DOMAIN] in update_url
++# username 	Username of your DDNS service account / replace [USERNAME] in update_url
++# password 	Password of your DDNS service account / replace [PASSWORD] in update_url
++#
++# use_https	use HTTPS to update DDNS service
++# cacert	file or directory where HTTPS can find certificates to verify server; 'IGNORE' ignore check of server certificate
++#
++# use_syslog	log activity to syslog
++#
++# ip_source	source to detect current local IP ('network' or 'web' or 'script' or 'interface')
++# ip_network	local defined network to read IP from i.e. 'wan' or 'wan6'
++# ip_url	URL to read local address from i.e. http://checkip.dyndns.com/ or http://checkipv6.dyndns.com/
++# ip_script	full path and name of your script to detect local IP
++# ip_interface	physical interface to use for detecting 
++#
++# check_interval	check for changes every  !!! checks below 10 minutes make no sense because the Internet 
++# check_unit		'days' 'hours' 'minutes' !!! needs about 5-10 minutes to sync an IP-change for an DNS entry
++#
++# force_interval	force to send an update to your service if no change was detected
++# force_unit		'days' 'hours' 'minutes' !!! force_interval="0" runs this script once for use i.e. with cron
++#
++# retry_interval	if error was detected retry in
++# retry_unit		'days' 'hours' 'minutes' 'seconds'
++# retry_count 		#NEW# number of retries before scripts stops
++#
++# use_ipv6		#NEW# detecting/sending IPv6 address
++# force_ipversion	#NEW# force usage of IPv4 or IPv6 for the whole detection and update communication
++# dns_server		#NEW# using a non default dns server to get Registered IP from Internet
++# force_dnstcp		#NEW# force communication with DNS server via TCP instead of default UDP
++# proxy			#NEW# using a proxy for communication !!! ALSO used to detect local IP via web => return proxy's IP !!!
++# use_logfile		#NEW# self-explanatory "/var/log/ddns/$SECTION_ID.log"
++#
++# some functionality needs 
++# - GNU Wget or cURL installed for sending updates to DDNS service
++# - BIND host installed to detect Registered IP
++#
++################################################################################
++
++# verify and load SECTION_ID is exists
++[ "$(uci_get ddns $SECTION_ID)" != "service" ] && {
++	[ $VERBOSE_MODE -le 1 ] && VERBOSE_MODE=2	# force console out and logfile output
++	[ -f $LOGFILE ] && rm -f $LOGFILE		# clear logfile before first entry
++	verbose_echo "0" "\n ************** =: ************** ************** **************"
++	verbose_echo "0" "       STARTED =: PID '$$' at $(eval $DATE_PROG)"
++	verbose_echo "0" "    UCI CONFIG =:\n$(uci -q show ddns | grep '=service' | sort)"
++	critical_error "Service '$SECTION_ID' not defined"
++}
++load_all_config_options "ddns" "$SECTION_ID"
++
++verbose_echo "-1" "\n ************** =: ************** ************** **************"
++verbose_echo "-1" "       STARTED =: PID '$$' at $(eval $DATE_PROG)"
++syslog_info "Started"
++case $VERBOSE_MODE in
++	-1) verbose_echo "0" "  verbose mode =: '-1' - run normal, NO console output";;
++	0) verbose_echo "0" "  verbose mode =: '0' - run normal, NO console output";;
++	1) verbose_echo "0" "  verbose mode =: '1' - run normal, console mode";;
++	2) verbose_echo "0" "  verbose mode =: '2' - run once, NO retry on error";;
++	3) verbose_echo "0" "  verbose mode =: '3' - run once, NO retry on error, NOT sending update";;
++	*) critical_error "ERROR detecting VERBOSE_MODE '$VERBOSE_MODE'"
++esac
++verbose_echo "-1" "    UCI CONFIG =:\n$(uci -q show ddns.$SECTION_ID | sort)"
++
++# set defaults if not defined
++[ -z "$enabled" ]	  && enabled=0
++[ -z "$retry_count" ]	  && retry_count=3
++[ -z "$use_syslog" ]      && use_syslog=0	# not use syslog
++[ -z "$use_https" ]       && use_https=0	# not use https
++[ -z "$use_logfile" ]     && use_logfile=1	# NEW - use logfile by default
++[ -z "$use_ipv6" ]	  && use_ipv6=0		# NEW - use IPv4 by default
++[ -z "$force_ipversion" ] && force_ipversion=0	# NEW - default let system decide
++[ -z "$force_dnstcp" ]	  && force_dnstcp=0	# NEW - default UDP
++[ -z "$ip_source" ]	  && ip_source="network"
++[ "$ip_source" = "network" -a -z "$ip_network" -a $use_ipv6 -eq 0 ] && ip_network="wan"  # IPv4: default wan
++[ "$ip_source" = "network" -a -z "$ip_network" -a $use_ipv6 -eq 1 ] && ip_network="wan6" # IPv6: default wan6
++[ "$ip_source" = "web" -a -z "$ip_url" -a $use_ipv6 -eq 0 ] && ip_url="http://checkip.dyndns.com"
++[ "$ip_source" = "web" -a -z "$ip_url" -a $use_ipv6 -eq 1 ] && ip_url="http://checkipv6.dyndns.com"
++[ "$ip_source" = "interface" -a -z "$ip_interface" ] && ip_interface="eth1"
++
++# check configuration and enabled state
++[ -z "$domain" -o -z "$username" -o -z "$password" ] && critical_error "Service Configuration not correctly configured"
++[ $enabled -eq 0 ] && critical_error "Service Configuration is disabled"
++
++# verify script if configured and executable
++if [ "$ip_source" = "script" ]; then
++	[ -z "$ip_script" ] && critical_error "No script defined to detect local IP"
++	[ -x "$ip_script" ] || critical_error "Script to detect local IP not found or not executable"
++fi
++
++# compute update interval in seconds
++get_seconds CHECK_SECONDS ${check_interval:-10} ${check_unit:-"minutes"} # default 10 min
++verbose_echo "-1" "check interval =: $CHECK_SECONDS seconds"
++verbose_echo "-1" " retry counter =: $retry_count times"
++
++# determine what update url we're using if a service_name is supplied
++# otherwise update_url is set inside configuration (custom service)
++[ -n "$service_name" ] && get_service_url update_url
++[ -z "$update_url" ]   && critical_error "no update url found/defined"
++
++if [ ! -d $RUNDIR ]; then
++	#make dir since it doesn't exist
++	mkdir -p $RUNDIR
++fi
++
++# verify DNS server
++[ -n "$dns_server" ] && {
++	verbose_echo "-1" "******* VERIFY =: DNS server '$dns_server'"
++	verify_dns "$dns_server"
++	case $? in
++		0)	;;	# everything OK
++		2)	critical_error "Invalid DNS server Error: '2' - nslookup can not resolve host";;
++		3)	critical_error "Invalid DNS server Error: '3' - nc (netcat) can not connect";;
++		4)	critical_error "Invalid DNS server Error: '4' - Forced IP Version don't matched";;
++		*)	critical_error "Invalid DNS server Error: '1' - unspecific error";;
++	esac
++}
++
++# verify Proxy server and set environment
++[ -n "$proxy" ] && {
++	verbose_echo "-1" "******* VERIFY =: Proxy server 'http://$proxy'"
++	verify_proxy "$proxy"
++	case $? in
++		0)	# everything OK
++			verbose_echo "0" "Proxy OK"
++			;;
++		2)	critical_error "Invalid Proxy server Error: '2' - nslookup can not resolve host";;
++		3)	critical_error "Invalid Proxy server Error: '3' - nc (netcat) can not connect";;
++		4)	critical_error "Invalid Proxy server Error: '4' - Forced IP Version don't matched";;
++		5)	critical_error "Invalid Proxy server Error: '5' - proxy port missing";;
++		*)	critical_error "Invalid Proxy server Error: '1' - unspecific error";;
++	esac
++}
++
++verbose_echo "-1" "*** Scheduling cron job"
++CHECK_MINS=$(($CHECK_SECONDS/60))
++if [ $CHECK_MINS -eq '0' ]; then
++    CHECK_MINS=1
++fi
++
++if [ -f $CRONTAB ]; then
++    grep -v "$PROG $SECTION_ID" $CRONTAB >/tmp/crontab.tmp
++    echo "*/$CHECK_MINS * * * * $PROG $SECTION_ID >/dev/null 2>&1" >>/tmp/crontab.tmp
++    mv -f /tmp/crontab.tmp $CRONTAB
++else
++    echo "*/$CHECK_MINS * * * * $PROG $SECTION_ID >/dev/null 2>&1" >$CRONTAB
++fi
++syslog_info "Scheduled ddns job"
++
++exit 0
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_test.sh b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_test.sh
+new file mode 100755
+index 0000000000..e1f03cbbd9
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_test.sh
+@@ -0,0 +1,35 @@
++#!/bin/sh
++# /usr/lib/ddns/dynamic_dns_test.sh
++
++[ $# -lt 1 ] && {
++	echo -e "\n  USAGE:"
++	echo -e "  $0 [SECTION]\n"
++	echo    "  [SECTION]      - service section as defined in /etc/config/ddns"
++	exit 1
++}
++
++. /usr/lib/ddns/dynamic_dns_functions.sh	# global vars are also defined here
++SECTION_ID="$1"
++VERBOSE_MODE="0"
++
++# verify and load SECTION_ID is exists
++[ "$(uci_get ddns $SECTION_ID)" != "service" ] && {
++	echo "Service '$SECTION_ID' not defined"
++	exit 1
++}
++
++load_all_config_options "ddns" "$SECTION_ID"
++
++[ -z "$use_https" ]       && use_https=0
++[ -z "$use_ipv6" ]	  && use_ipv6=0
++
++[ -n "$service_name" ] && get_service_url update_url
++[ -z "$update_url" ]   && critical_error "no update url found/defined"
++
++get_local_ip LOCAL_IP
++RC=$?
++[ $RC -gt 0 ] && {
++    exit $RC
++}
++
++send_update "$LOCAL_IP"
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_updater.sh b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_updater.sh
+new file mode 100755
+index 0000000000..0cbfad0e0b
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/dynamic_dns_updater.sh
+@@ -0,0 +1,282 @@
++#!/bin/sh
++# /usr/lib/ddns/dynamic_dns_updater.sh
++#
++# Original written by Eric Paul Bishop, January 2008
++# Distributed under the terms of the GNU General Public License (GPL) version 2.0
++# (Loosely) based on the script on the one posted by exobyte in the forums here:
++# http://forum.openwrt.org/viewtopic.php?id=14040
++#
++# extended and partial rewritten by Christian Schoenebeck in August 2014 to support:
++# - IPv6 DDNS services
++# - DNS Server to retrieve registered IP including TCP transport
++# - Proxy Server to send out updates
++# - force_interval=0 to run once
++# - the usage of BIND's host command instead of BusyBox's nslookup if installed
++# - extended Verbose Mode and log file support for better error detection 
++#
++# variables in small chars are read from /etc/config/ddns
++# variables in big chars are defined inside these scripts as global vars
++# variables in big chars beginning with "__" are local defined inside functions only
++#set -vx  	#script debugger
++
++[ $# -lt 1 -o -n "${2//[0-3]/}" -o ${#2} -gt 1 ] && {
++	echo -e "\n  USAGE:"
++	echo -e "  $0 [SECTION] [VERBOSE_MODE]\n"
++	echo    "  [SECTION]      - service section as defined in /etc/config/ddns"
++	echo    "  [VERBOSE_MODE] - '0' NO output to console"
++	echo    "                   '1' output to console"
++	echo    "                   '2' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo    "                   '3' output to console AND logfile"
++	echo    "                       + run once WITHOUT retry on error"
++	echo -e "                       + NOT sending update to DDNS service\n"
++	exit 1
++}
++
++. /usr/lib/ddns/dynamic_dns_functions.sh	# global vars are also defined here
++
++SECTION_ID="$1"
++VERBOSE_MODE=${2:--1}	#default mode is log updates only
++
++# set file names
++UPDFILE="$RUNDIR/$SECTION_ID.update"	# last update successful send (system uptime)
++IPFILE="$RUNDIR/$SECTION_ID.ip"	        # last update IP address
++LOGFILE="$LOGDIR/$SECTION_ID.log"	# log file
++
++# VERBOSE_MODE > 1 delete logfile if exist to create an empty one
++# only with this data of this run for easier diagnostic
++# new one created by verbose_echo function
++[ $VERBOSE_MODE -gt 1 -a -f $LOGFILE ] && rm -f $LOGFILE
++
++################################################################################
++# Leave this comment here, to clearly document variable names that are expected/possible
++# Use load_all_config_options to load config options, which is a much more flexible solution.
++#
++# config_load "ddns"
++# config_get <variable> $SECTION_ID <option]>
++#
++# defined options (also used as variable):
++# 
++# enable	self-explanatory
++# interface 	network interface used by hotplug.d i.e. 'wan' or 'wan6'
++#
++# service_name	Which DDNS service do you use or "custom"
++# update_url	URL to use to update your "custom" DDNS service
++#
++# domain 	Your DNS name / replace [DOMAIN] in update_url
++# username 	Username of your DDNS service account / replace [USERNAME] in update_url
++# password 	Password of your DDNS service account / replace [PASSWORD] in update_url
++#
++# use_https	use HTTPS to update DDNS service
++# cacert	file or directory where HTTPS can find certificates to verify server; 'IGNORE' ignore check of server certificate
++#
++# use_syslog	log activity to syslog
++#
++# ip_source	source to detect current local IP ('network' or 'web' or 'script' or 'interface')
++# ip_network	local defined network to read IP from i.e. 'wan' or 'wan6'
++# ip_url	URL to read local address from i.e. http://checkip.dyndns.com/ or http://checkipv6.dyndns.com/
++# ip_script	full path and name of your script to detect local IP
++# ip_interface	physical interface to use for detecting 
++#
++# check_interval	check for changes every  !!! checks below 10 minutes make no sense because the Internet 
++# check_unit		'days' 'hours' 'minutes' !!! needs about 5-10 minutes to sync an IP-change for an DNS entry
++#
++# force_interval	force to send an update to your service if no change was detected
++# force_unit		'days' 'hours' 'minutes' !!! force_interval="0" runs this script once for use i.e. with cron
++#
++# retry_interval	if error was detected retry in
++# retry_unit		'days' 'hours' 'minutes' 'seconds'
++# retry_count 		#NEW# number of retries before scripts stops
++#
++# use_ipv6		#NEW# detecting/sending IPv6 address
++# force_ipversion	#NEW# force usage of IPv4 or IPv6 for the whole detection and update communication
++# dns_server		#NEW# using a non default dns server to get Registered IP from Internet
++# force_dnstcp		#NEW# force communication with DNS server via TCP instead of default UDP
++# proxy			#NEW# using a proxy for communication !!! ALSO used to detect local IP via web => return proxy's IP !!!
++# use_logfile		#NEW# self-explanatory "/var/log/ddns/$SECTION_ID.log"
++#
++# some functionality needs 
++# - GNU Wget or cURL installed for sending updates to DDNS service
++# - BIND host installed to detect Registered IP
++#
++################################################################################
++
++# verify and load SECTION_ID is exists
++[ "$(uci_get ddns $SECTION_ID)" != "service" ] && {
++	[ $VERBOSE_MODE -le 1 ] && VERBOSE_MODE=2	# force console out and logfile output
++	[ -f $LOGFILE ] && rm -f $LOGFILE		# clear logfile before first entry
++	verbose_echo "0" "\n ************** =: ************** ************** **************"
++	verbose_echo "0" "       STARTED =: PID '$$' at $(eval $DATE_PROG)"
++	verbose_echo "0" "    UCI CONFIG =:\n$(uci -q show ddns | grep '=service' | sort)"
++	critical_error "Service '$SECTION_ID' not defined"
++}
++load_all_config_options "ddns" "$SECTION_ID"
++
++verbose_echo "0" "\n ************** =: ************** ************** **************"
++verbose_echo "0" "       STARTED =: PID '$$' at $(eval $DATE_PROG)"
++syslog_info "Started"
++case $VERBOSE_MODE in
++	-1) verbose_echo "0" "  verbose mode =: '-1' - run normal, NO console output";;
++	0) verbose_echo "0" "  verbose mode =: '0' - run normal, NO console output";;
++	1) verbose_echo "0" "  verbose mode =: '1' - run normal, console mode";;
++	2) verbose_echo "0" "  verbose mode =: '2' - run once, NO retry on error";;
++	3) verbose_echo "0" "  verbose mode =: '3' - run once, NO retry on error, NOT sending update";;
++	*) critical_error "ERROR detecting VERBOSE_MODE '$VERBOSE_MODE'"
++esac
++verbose_echo "0" "    UCI CONFIG =:\n$(uci -q show ddns.$SECTION_ID | sort)"
++
++# set defaults if not defined
++[ -z "$enabled" ]	  && enabled=0
++[ -z "$retry_count" ]	  && retry_count=3
++[ -z "$use_syslog" ]      && use_syslog=0	# not use syslog
++[ -z "$use_https" ]       && use_https=0	# not use https
++[ -z "$use_logfile" ]     && use_logfile=1	# NEW - use logfile by default
++[ -z "$use_ipv6" ]	  && use_ipv6=0		# NEW - use IPv4 by default
++[ -z "$force_ipversion" ] && force_ipversion=0	# NEW - default let system decide
++[ -z "$force_dnstcp" ]	  && force_dnstcp=0	# NEW - default UDP
++[ -z "$ip_source" ]	  && ip_source="network"
++[ "$ip_source" = "network" -a -z "$ip_network" -a $use_ipv6 -eq 0 ] && ip_network="wan"  # IPv4: default wan
++[ "$ip_source" = "network" -a -z "$ip_network" -a $use_ipv6 -eq 1 ] && ip_network="wan6" # IPv6: default wan6
++[ "$ip_source" = "web" -a -z "$ip_url" -a $use_ipv6 -eq 0 ] && ip_url="http://checkip.dyndns.com"
++[ "$ip_source" = "web" -a -z "$ip_url" -a $use_ipv6 -eq 1 ] && ip_url="http://checkipv6.dyndns.com"
++[ "$ip_source" = "interface" -a -z "$ip_interface" ] && ip_interface="eth1"
++
++# check configuration and enabled state
++[ -z "$domain" -o -z "$username" -o -z "$password" ] && critical_error "Service Configuration not correctly configured"
++[ $enabled -eq 0 ] && critical_error "Service Configuration is disabled"
++
++# verify script if configured and executable
++if [ "$ip_source" = "script" ]; then
++	[ -z "$ip_script" ] && critical_error "No script defined to detect local IP"
++	[ -x "$ip_script" ] || critical_error "Script to detect local IP not found or not executable"
++fi
++
++# compute update interval in seconds
++get_seconds FORCE_SECONDS ${force_interval:-72} ${force_unit:-"hours"}	 # default 3 days
++get_seconds RETRY_SECONDS ${retry_interval:-60} ${retry_unit:-"seconds"} # default 60 sec
++verbose_echo "0" "force interval =: $FORCE_SECONDS seconds"
++verbose_echo "0" "retry interval =: $RETRY_SECONDS seconds"
++verbose_echo "0" " retry counter =: $retry_count times"
++
++# determine what update url we're using if a service_name is supplied
++# otherwise update_url is set inside configuration (custom service)
++[ -n "$service_name" ] && get_service_url update_url
++[ -z "$update_url" ]   && critical_error "no update url found/defined"
++
++if [ ! -d $RUNDIR ]; then
++	#make dir since it doesn't exist
++	mkdir -p $RUNDIR
++fi
++
++# determine when the last update was
++# the following lines should prevent multiple updates if hotplug fires multiple startups 
++# as described in Ticket #7820, but did not function if never an update take place
++# i.e. after a reboot (/var is linked to /tmp)
++# using uptime as reference because date might not be updated via NTP client 
++get_uptime CURR_TIME
++[ -e "$UPDFILE" ] && {
++	LAST_TIME=$(cat $UPDFILE)
++	# check also LAST > CURR because link of /var/run to /tmp might be removed
++	# i.e. boxes with larger filesystems
++	[ -z "$LAST_TIME" ] && LAST_TIME=0
++	[ $LAST_TIME -gt $CURR_TIME ] && LAST_TIME=0
++}
++
++if [ -e "$IPFILE" ]; then
++    LAST_IP=$(cat $IPFILE)
++else
++    LAST_IP=''
++fi
++
++if [ $LAST_TIME -eq 0 ]; then
++	verbose_echo "0" "   last update =: never"
++else
++	EPOCH_TIME=$(( $(date +%s) - CURR_TIME + LAST_TIME ))
++	EPOCH_TIME="date -d @$EPOCH_TIME +'$DATE_FORMAT'"
++	verbose_echo "0" "   last update =: $(eval $EPOCH_TIME)"
++fi
++
++	# read local IP
++	ERR_LOCAL_IP=0	# reset err counter
++	verbose_echo "0" "[$(eval $DATE_PROG)] Local IP"
++	get_local_ip LOCAL_IP
++	ERR_LAST=$?	# save return value
++	# Error in function
++	while [ $ERR_LAST -gt 0 ]; do
++		if [ $VERBOSE_MODE -le 1 ]; then	# VERBOSE_MODE <= 1 then retry
++			# we can't read local IP
++			ERR_LOCAL_IP=$(( $ERR_LOCAL_IP + 1 ))
++			[ $ERR_LOCAL_IP -gt $retry_count ] && critical_error "Can not detect local IP"
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: detecting local IP - retry $ERR_LOCAL_IP/$retry_count in $RETRY_SECONDS seconds\n"
++			syslog_err "Error detecting local IP - retry $ERR_LOCAL_IP/$retry_count in $RETRY_SECONDS seconds"
++			sleep $RETRY_SECONDS
++			continue	# jump back to the beginning of while loop
++		else
++			verbose_echo "-1" "\n!!!!!!!!! ERROR =: detecting local IP - NO retry\n"
++		fi
++	done
++
++	# prepare update
++	# never updated or forced immediate then NEXT_TIME = 0 
++	[ $FORCE_SECONDS -eq 0 -o $LAST_TIME -eq 0 ] \
++		&& NEXT_TIME=0 \
++		|| NEXT_TIME=$(( $LAST_TIME + $FORCE_SECONDS ))
++	# get current uptime
++	get_uptime CURR_TIME
++	
++	# send update when current time > next time or local ip different from registered ip (as loop on error)
++	ERR_SEND=-1
++	while [ $CURR_TIME -ge $NEXT_TIME -o "$LOCAL_IP" != "$LAST_IP" ]; do
++		if [ $ERR_SEND -lt 0 ]; then
++		    ERR_SEND=0
++		fi
++
++		if [ $VERBOSE_MODE -gt 2 ]; then
++			verbose_echo "-1" "  VERBOSE MODE =: NO UPDATE send to DDNS provider"
++		elif [ "$LOCAL_IP" != "$LAST_IP" ]; then
++			verbose_echo "-1" "[$(eval $DATE_PROG) UPDATE] LOCAL: '$LOCAL_IP' <=> REGISTERED: '$LAST_IP'"
++		else
++			verbose_echo "-1" "[$(eval $DATE_PROG) FORCED] LOCAL: '$LOCAL_IP' == REGISTERED: '$LAST_IP'"
++		fi
++		# only send if VERBOSE_MODE < 3
++		ERR_LAST=0
++		[ $VERBOSE_MODE -lt 3 ] && {
++			send_update "$LOCAL_IP" 
++			ERR_LAST=$?	# save return value
++		}
++
++		# Error in function 
++		if [ $ERR_LAST -gt 0 ]; then
++			if [ $VERBOSE_MODE -le 1 ]; then	# VERBOSE_MODE <=1 then retry
++				# error sending local IP
++				ERR_SEND=$(( $ERR_SEND + 1 ))
++				[ $ERR_SEND -gt $retry_count ] && critical_error "can not send update to DDNS Provider"
++				verbose_echo "-1" "\n!!!!!!!!! ERROR =: sending update - retry $ERR_SEND/$retry_count in $RETRY_SECONDS seconds\n"
++				syslog_err "Error sending update - retry $ERR_SEND/$retry_count in $RETRY_SECONDS seconds"
++				sleep $RETRY_SECONDS
++				continue # re-loop
++			else
++				verbose_echo "-1" "\n!!!!!!!!! ERROR =: sending update to DDNS service - NO retry\n"
++				break
++			fi
++		else
++			# we send data so save "last time"
++			get_uptime LAST_TIME
++			echo $LAST_TIME > $UPDFILE	# save LASTTIME to file
++			echo $LOCAL_IP > $IPFILE        # save LAST IP to file
++			[ "$LOCAL_IP" != "$LAST_IP" ] \
++				&& syslog_notice "Changed IP: '$LOCAL_IP' successfully send" \
++				|| syslog_notice "Forced Update: IP: '$LOCAL_IP' successfully send"
++			break # leave while
++		fi
++	done
++
++	if [ $ERR_SEND -lt 0 ]; then
++	    syslog_info "IP Address unchanged"
++	fi
++
++	syslog_info "Rerun IP check"
++
++syslog_info "Done"
++
++exit 0
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/services b/package/network/services/ddns-service/files/usr/lib/ddns/services
+new file mode 100644
+index 0000000000..d9482e6a92
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/services
+@@ -0,0 +1,71 @@
++# This file contains the update urls for various dynamic dns services.
++# Column one contains the service name, column two contains the update url.
++# within the update url there are 4 variables you can use: [USERNAME], 
++# [PASSWORD], [DOMAIN] and [IP].  These are substituted for the username, 
++# password, and domain name specified in the /etc/config/ddns file when an 
++# update is performed.  The IP is substituted for the current ip address of the
++# router.  These variables are case sensitive, while urls generally are not, so 
++# if you need to enter the same text in the url (which seems very unlikely) put 
++# that text in lowercase, while the variables should remain in uppercase
++
++"dyndns.org"		"http://[USERNAME]:[PASSWORD]@members.dyndns.org/nic/update?hostname=[DOMAIN]&myip=[IP]"
++"changeip.com"		"http://[USERNAME]:[PASSWORD]@nic.changeip.com/nic/update?u=[USERNAME]&p=[PASSWORD]&cmd=update&hostname=[DOMAIN]&ip=[IP]"
++"zoneedit.com"		"http://[USERNAME]:[PASSWORD]@dynamic.zoneedit.com/auth/dynamic.html?host=[DOMAIN]&dnsto=[IP]"
++"free.editdns.net"	"http://dyndns-free.editdns.net/api/dynLinux.php?p=[PASSWORD]&r=[DOMAIN]"
++
++#noip is an alias of no-ip, so allow both names for the same service
++"no-ip.com"		"http://[USERNAME]:[PASSWORD]@dynupdate.no-ip.com/nic/update?hostname=[DOMAIN]&myip=[IP]"
++"noip.com"		"http://[USERNAME]:[PASSWORD]@dynupdate.no-ip.com/nic/update?hostname=[DOMAIN]&myip=[IP]"
++
++#freedns.afraid.org is weird, you just need an update code, for which we use the password variable
++"freedns.afraid.org"	"http://freedns.afraid.org/dynamic/update.php?[PASSWORD]&address=[IP]"
++
++#### ADD YOURS HERE! ######################################################################################
++#                                                                                                         #
++# There are TONS of dynamic dns services out there. There's a huge list of them at:                       #
++# http://www.dmoz.org/Computers/Software/Internet/Servers/Address_Management/Dynamic_DNS_Services/        #
++# If anyone has time they could update this file to be compatible with a bunch of them                    #
++#                                                                                                         #
++###########################################################################################################
++
++# DNS Max and resellers' update urls
++"dnsmax.com"	"http://update.dnsmax.com/update/?username=[USERNAME]&password=[PASSWORD]&resellerid=1&clientname=openwrt&clientversion=8.09&protocolversion=2.0&updatehostname=[DOMAIN]&ip=[IP]"
++"thatip.com"	"http://update.dnsmax.com/update/?username=[USERNAME]&password=[PASSWORD]&resellerid=2&clientname=openwrt&clientversion=8.09&protocolversion=2.0&updatehostname=[DOMAIN]&ip=[IP]"
++
++# Hurricane Electric Dynamic DNS
++"he.net"		"http://[DOMAIN]:[PASSWORD]@dyn.dns.he.net/nic/update?hostname=[DOMAIN]&myip=[IP]" 
++
++# DNSdynamic.org
++"dnsdynamic.org"	"http://[USERNAME]:[PASSWORD]@www.dnsdynamic.org/api/?hostname=[DOMAIN]&myip=[IP]"
++
++# dnsExit.com free dynamic DNS update url
++"dnsexit.com"		"http://www.dnsexit.com/RemoteUpdate.sv?login=[USERNAME]&password=[PASSWORD]&host=[DOMAIN]&myip=[IP]"
++
++# OVH
++"ovh.com" "http://[USERNAME]:[PASSWORD]@www.ovh.com/nic/update?system=dyndns&hostname=[DOMAIN]&myip=[IP]"
++
++# dns-o-matic is a free service by opendns.com for updating multiple hosts and
++# dynamic dns services in one api call. To update all your configured services
++# at once, use "all.dnsomatic.com as the hostname.
++"dnsomatic.com" "http://[USERNAME]:[PASSWORD]@updates.dnsomatic.com/nic/update?hostname=all.dnsomatic.com&myip=[IP]"
++
++# 3322.org
++"3322.org"  "http://[USERNAME]:[PASSWORD]@members.3322.org/dyndns/update?system=dyndns&hostname=[DOMAIN]&myip=[IP]"
++
++# namecheap.com
++"namecheap.com" "http://dynamicdns.park-your-domain.com/update?host=[USERNAME]&domain=[DOMAIN]&password=[PASSWORD]&ip=[IP]"
++
++# easydns.com dynamic DNS
++"easydns.com"		"http://[USERNAME]:[PASSWORD]@api.cp.easydns.com/dyn/tomato.php?hostname=[DOMAIN]&myip=[IP]"
++
++# Winco DDNS
++"ddns.com.br"	"http://[DOMAIN]:[PASSWORD]@members.ddns.com.br/nic/update?hostname=[DOMAIN]&myip=[IP]"
++
++# Mythic Beasts (https://www.mythic-beasts.com) Dynamic DNS
++"mythic-beasts.com"	"http://dnsapi4.mythic-beasts.com/?domain=[USERNAME]&password=[PASSWORD]&command=REPLACE%20[DOMAIN]%2060%20A%20DYNAMIC_IP"
++
++# Securepoint Dynamic-DNS-Service	(http://www.spdns.de)
++"spdns.de"	"http://[USERNAME]:[PASSWORD]@update.spdns.de/nic/update?hostname=[DOMAIN]&myip=[IP]"
++
++# duiadns.net - free dynamic DNS
++"duiadns.net"   "http://ipv4.duia.ro/dynamic.duia?host=[DOMAIN]&password=[PASSWORD]&ip4=[IP]"
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/services_ipv6 b/package/network/services/ddns-service/files/usr/lib/ddns/services_ipv6
+new file mode 100644
+index 0000000000..bc64cd0cb7
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/services_ipv6
+@@ -0,0 +1,29 @@
++# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
++# !!!!! IPv6 Version of original services file			!!!!!
++# !!!!! funtionally and syntax is the same			!!!!!
++# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
++# This file contains the update urls for various dynamic dns services.
++# Column one contains the service name, column two contains the update url.
++# within the update url there are 4 variables you can use: [USERNAME], 
++# [PASSWORD], [DOMAIN] and [IP].  These are substituted for the username, 
++# password, and domain name specified in the /etc/config/ddns file when an 
++# update is performed.  The IP is substituted for the current ip address of the
++# router.  These variables are case sensitive, while urls generally are not, so 
++# if you need to enter the same text in the url (which seems very unlikely) put 
++# that text in lowercase, while the variables should remain in uppercase
++
++# tested with
++
++# Securepoint Dynamic-DNS-Service
++"spdns.de"	"http://[USERNAME]:[PASSWORD]@update.spdns.de/nic/update?hostname=[DOMAIN]&myip=[IP]"
++
++# Hurricane Electric Dynamic DNS
++"he.net"	"http://[DOMAIN]:[PASSWORD]@dyn.dns.he.net/nic/update?hostname=[DOMAIN]&myip=[IP]" 
++
++#### ADD YOURS HERE! ######################################################################################
++#                                                                                                         #
++# There are TONS of dynamic dns services out there. There's a huge list of them at:                       #
++# http://www.dmoz.org/Computers/Software/Internet/Servers/Address_Management/Dynamic_DNS_Services/        #
++# If anyone has time they could update this file to be compatible with a bunch of them                    #
++#                                                                                                         #
++###########################################################################################################
+diff --git a/package/network/services/ddns-service/files/usr/lib/ddns/url_escape.sed b/package/network/services/ddns-service/files/usr/lib/ddns/url_escape.sed
+new file mode 100644
+index 0000000000..f50dd6e118
+--- /dev/null
++++ b/package/network/services/ddns-service/files/usr/lib/ddns/url_escape.sed
+@@ -0,0 +1,25 @@
++# sed url escaping
++s: :%20:g
++s:<:%3C:g
++s:>:%3E:g
++s:#:%23:g
++s:%:%25:g
++s:{:%7B:g
++s:}:%7D:g
++s:|:%7C:g
++s:\\:%5C:g
++s:\^:%5E:g
++s:~:%7E:g
++s:\[:%5B:g
++s:\]:%5D:g
++s:`:%60:g
++s:;:%3B:g
++s:/:%2F:g
++s:?:%3F:g
++s^:^%3A^g
++s:@:%40:g
++s:=:%3D:g
++s:&:%26:g
++s:\$:%24:g
++s:':%27:g
++s:":%22:g
+-- 
+2.34.1
+
