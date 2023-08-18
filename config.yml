@@ -4,3 +4,4 @@ revision: 170d9e4
 
 patch_folders:
   - patches/base
+  - patches/apps
