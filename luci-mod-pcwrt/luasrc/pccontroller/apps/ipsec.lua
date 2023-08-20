@@ -156,7 +156,7 @@ local function get_users(c)
 	users[#users + 1] = {
 	    type = u.type,
 	    name = u.name,
-	    password = unscramble_pwd(u.password),
+	    password = u.password,
 	    ip = u.ip,
 	    guest = u.guest == '1',
 	    vpnout = u.vpnout == '1',
@@ -258,7 +258,7 @@ function _get_data(c)
 	    name = a.name,
 	    psk = a.psk,
 	    username = a.username,
-	    password = unscramble_pwd(a.password),
+	    password = a.password,
 	    cadn = ca_subject,
 	    clidn = cli_subject,
 	}
@@ -419,7 +419,7 @@ function _update(c, v)
 		s = c:section(config, 'user')
 		c:set(config, s, 'type', user.type == 'ikev1' and 'ikev1' or 'ikev2')
 		c:set(config, s, 'name', user.name)
-		if user.password then c:set(config, s, 'password', scramble_pwd(user.password)) end
+		if user.password then c:set(config, s, 'password', user.password) end
 		c:set(config, s, 'ip', ip) 
 		if user.guest then
 		    guestips[#guestips + 1] = ip
@@ -603,7 +603,7 @@ function _update_client(c, v)
 		c:set(config, s, 'username', cfg.cfguser)
 	    end
 	    if cfg.cfgpass then
-		c:set(config, s, 'password', scramble_pwd(cfg.cfgpass))
+		c:set(config, s, 'password', cfg.cfgpass)
 	    end
 	    cfgnames[#cfgnames+1] = cfg.name
 	end

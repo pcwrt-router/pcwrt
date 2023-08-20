@@ -21,17 +21,6 @@ local firewall = 'firewall'
 
 math.randomseed(os.time())
 
-local function encryptor(s)
-    return scramble_pwd(s:sub(1, 32)) .. scramble_pwd(s:sub(33))
-end
-
-local function decryptor(s)
-    if not s or #s < 65 then
-	return s
-    end
-    return unscramble_pwd(s:sub(1, 64)) .. unscramble_pwd(s:sub(65))
-end
-
 local function get_enabled_network(c)
     local internal_ifs = get_internal_interfaces(c)
     local enabled_ifs = get_vpn_ifaces(c, 'wg')
@@ -172,7 +161,7 @@ local function create_new_peer(c, peer, netaddr, netmask, usedips, guestips)
     c:set(config, s, 'ip', ipaddr)
     c:set(config, s, 'publickey', peer.pubkey)
     if peer.privkey then
-	c:set(config, s, 'privatekey', encryptor(peer.privkey))
+	c:set(config, s, 'privatekey', peer.privkey)
     end
     if peer.guest then
 	c:set(config, s, 'guest', '1')
@@ -222,7 +211,7 @@ function _update(c, v)
     if c:get(config, s, 'privatekey') == nil or c:get(config, s, 'publickey') == nil then
 	local privatekey = util.exec('wg genkey'):trim()
 	local publickey = util.exec('echo '..privatekey..' | wg pubkey'):trim()
-	c:set(config, s, 'privatekey', encryptor(privatekey))
+	c:set(config, s, 'privatekey', privatekey)
 	c:set(config, s, 'publickey', publickey)
     end
 
@@ -282,7 +271,7 @@ function _update(c, v)
 		    if peer.pubkey then
 			c:set(config, ep.section, 'publickey', peer.pubkey)
 			if peer.privkey then
-			    c:set(config, ep.section, 'privatekey', encryptor(peer.privkey))
+			    c:set(config, ep.section, 'privatekey', peer.privkey)
 			else
 			    c:delete(config, ep.section, 'privatekey')
 			end
@@ -314,7 +303,7 @@ function init_server()
     local privatekey = util.exec('wg genkey'):trim()
     local publickey = util.exec('echo '..privatekey..' | wg pubkey'):trim()
 
-    c:set(config, s, 'privatekey', encryptor(privatekey))
+    c:set(config, s, 'privatekey', privatekey)
     c:set(config, s, 'publickey', publickey)
 
     local ok = c:commit(config)
@@ -363,7 +352,7 @@ function get_peer_info()
 	http.write_json({
 	    status = 'success',
 	    data = {
-		privatekey = decryptor(c:get(config, p, 'privatekey')),
+		privatekey = c:get(config, p, 'privatekey'),
 		publickey = c:get(config, p, 'publickey'),
 		ip = c:get(config, p, 'ip'),
 		dns = c:get('network', 'lan', 'ipaddr'),
@@ -411,7 +400,7 @@ function download_peer_conf()
     local conf = '[Interface]\n'
     conf = conf .. 'Address = '.. c:get(config, p, 'ip') ..'/32\n'
     conf = conf .. 'ListenPort = '.. math.random(1025, 65535) ..'\n'
-    conf = conf .. 'PrivateKey = '.. decryptor(c:get(config, p, 'privatekey')) ..'\n'
+    conf = conf .. 'PrivateKey = '.. c:get(config, p, 'privatekey') ..'\n'
     conf = conf .. 'DNS = '.. c:get('network', 'lan', 'ipaddr') ..'\n\n'
     conf = conf .. '[Peer]\n'
     conf = conf .. 'PublicKey = '.. c:get(config, svr, 'publickey') .. '\n'
@@ -474,7 +463,7 @@ function download_peer_qr()
     o:write('[Interface]\n')
     o:write('Address = '.. c:get(config, p, 'ip') ..'/32\n')
     o:write('ListenPort = '.. math.random(1025, 65535) ..'\n')
-    o:write('PrivateKey = '.. decryptor(c:get(config, p, 'privatekey')) ..'\n')
+    o:write('PrivateKey = '.. c:get(config, p, 'privatekey') ..'\n')
     o:write('DNS = '.. c:get('network', 'lan', 'ipaddr') ..'\n\n')
     o:write('[Peer]\n')
     o:write('PublicKey = '.. c:get(config, svr, 'publickey') .. '\n')
@@ -554,7 +543,7 @@ function _update_client(c, v)
 	    end
 	    if conn.ip then c:set(config, s, 'ip', conn.ip) end
 	    if conn.port then c:set(config, s, 'port', conn.port) end
-	    if conn.privatekey then c:set(config, s, 'privatekey', encryptor(conn.privatekey)) end
+	    if conn.privatekey then c:set(config, s, 'privatekey', conn.privatekey) end
 	    if conn.publickey then c:set(config, s, 'publickey', conn.publickey) end
 	    if conn.dns then c:set(config, s, 'dns', conn.dns) end
 	    if conn.presharedkey then c:set(config, s, 'presharedkey', conn.presharedkey) end
@@ -622,7 +611,7 @@ function get_conn_parms()
 		    name = s.name,
 		    ip = s.ip,
 		    port = s.port,
-		    privatekey = decryptor(s.privatekey),
+		    privatekey = s.privatekey,
 		    publickey = s.publickey,
 		    dns = s.dns,
 		    presharedkey = s.presharedkey,
