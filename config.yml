@@ -1,7 +1,11 @@
 repo:  https://github.com/openwrt/openwrt.git
 branch: openwrt-21.02
 revision: 170d9e4
+feeds_packages_revision: b3a6bb8
 
 patch_folders:
   - patches/base
   - patches/apps
+
+feeds_packages_patch_folders:
+  - patches/feeds/packages

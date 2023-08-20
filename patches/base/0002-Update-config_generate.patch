@@ -1,0 +1,72 @@
+From 78b169e7f45c24bb782d04587ac7bb5f02f80e7b Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Sat, 19 Aug 2023 16:28:26 -0500
+Subject: [PATCH] Update config_generate
+
+---
+ package/base-files/files/bin/config_generate | 35 +++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/package/base-files/files/bin/config_generate b/package/base-files/files/bin/config_generate
+index 38362813d1..b7034aa40e 100755
+--- a/package/base-files/files/bin/config_generate
++++ b/package/base-files/files/bin/config_generate
+@@ -89,6 +89,38 @@ generate_static_network() {
+ 	fi
+ }
+ 
++generate_vpn_network() {
++	json_select model
++	json_get_var model id
++	json_select ..
++
++	uci -q batch <<-EOF
++		delete network.vpn
++		set network.vpn='interface'
++		set network.vpn.ifname='tun0'
++		set network.vpn.proto='none'
++		set network.vpn.auto='1'
++
++		delete network.wg
++		set network.wg='interface'
++		set network.wg.ifname='wg0'
++		set network.wg.proto='none'
++		set network.wg.auto='1'
++
++		delete network.vpnc
++		set network.vpnc='interface'
++		set network.vpnc.ifname='tun1'
++		set network.vpnc.proto='none'
++		set network.vpnc.auto='1'
++
++		delete network.wgc
++		set network.wgc='interface'
++		set network.wgc.ifname='wg1'
++		set network.wgc.proto='none'
++		set network.wgc.auto='1'
++	EOF
++}
++
+ addr_offset=2
+ generate_network() {
+ 	local ports device macaddr protocol type ipaddr netmask vlan
+@@ -173,7 +205,6 @@ generate_network() {
+ 				set network.$1.ipaddr='$ipad'
+ 				set network.$1.netmask='$netm'
+ 			EOF
+-			[ -e /proc/sys/net/ipv6 ] && uci set network.$1.ip6assign='60'
+ 		;;
+ 
+ 		dhcp)
+@@ -513,6 +544,8 @@ if [ ! -s /etc/config/network ]; then
+ 	json_get_keys keys network
+ 	for key in $keys; do generate_network $key $bridge_name; done
+ 
++	generate_vpn_network
++
+ 	json_get_keys keys switch
+ 	for key in $keys; do generate_switch $key; done
+ fi
+-- 
+2.34.1
+

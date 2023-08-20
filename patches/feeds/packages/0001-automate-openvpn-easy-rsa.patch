@@ -1,0 +1,97 @@
+From 223f1bc083c6cb9c52b67ed5d0809b7a6727c31f Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Sat, 19 Aug 2023 15:46:57 -0500
+Subject: [PATCH 1/2] automate openvpn-easy-rsa
+
+---
+ net/openvpn-easy-rsa/Makefile                 |  1 +
+ net/openvpn-easy-rsa/files/gen-keys.sh        | 10 ++++
+ .../patches/0001-easyrsa.patch                | 47 +++++++++++++++++++
+ 3 files changed, 58 insertions(+)
+ create mode 100644 net/openvpn-easy-rsa/files/gen-keys.sh
+ create mode 100644 net/openvpn-easy-rsa/patches/0001-easyrsa.patch
+
+diff --git a/net/openvpn-easy-rsa/Makefile b/net/openvpn-easy-rsa/Makefile
+index fca5e3a9e..c7edae15b 100644
+--- a/net/openvpn-easy-rsa/Makefile
++++ b/net/openvpn-easy-rsa/Makefile
+@@ -65,6 +65,7 @@ define Package/openvpn-easy-rsa/install
+ 
+ 	$(INSTALL_DIR) $(1)/usr/bin
+ 	$(LN) ../lib/easy-rsa/easyrsa $(1)/usr/bin/easyrsa
++	$(INSTALL_BIN) files/gen-keys.sh $(1)/usr/bin/
+ 
+ 	$(INSTALL_DIR) $(1)/etc/easy-rsa
+ 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/dist-staging/unix/EasyRSA-$(PKG_VERSION)/openssl-easyrsa.cnf $(1)/etc/easy-rsa/openssl-1.0.cnf
+diff --git a/net/openvpn-easy-rsa/files/gen-keys.sh b/net/openvpn-easy-rsa/files/gen-keys.sh
+new file mode 100644
+index 000000000..27bd98f8b
+--- /dev/null
++++ b/net/openvpn-easy-rsa/files/gen-keys.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh
++EASYRSA=/etc/easy-rsa
++
++PASS=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 16`
++EASYRSA=$EASYRSA easyrsa init-pki
++EASYRSA=$EASYRSA easyrsa --passout=pass:$PASS --passin=pass:$PASS build-ca
++EASYRSA=$EASYRSA easyrsa --passin=pass:$PASS build-server-full pcwrt-openvpn-server nopass
++EASYRSA=$EASYRSA easyrsa --passin=pass:$PASS build-client-full pcwrt-openvpn-client nopass
++openvpn --genkey secret $EASYRSA/pki/tls-auth-key.pem
++EASYRSA=$EASYRSA easyrsa gen-dh
+diff --git a/net/openvpn-easy-rsa/patches/0001-easyrsa.patch b/net/openvpn-easy-rsa/patches/0001-easyrsa.patch
+new file mode 100644
+index 000000000..c24ac584e
+--- /dev/null
++++ b/net/openvpn-easy-rsa/patches/0001-easyrsa.patch
+@@ -0,0 +1,47 @@
++Index: easy-rsa-3.0.8/easyrsa3/easyrsa
++===================================================================
++--- easy-rsa-3.0.8.orig/easyrsa3/easyrsa
+++++ easy-rsa-3.0.8/easyrsa3/easyrsa
++@@ -535,15 +535,7 @@ $help_note"
++ init_pki() {
++ 
++ 	# If EASYRSA_PKI exists, confirm before we rm -rf (skiped with EASYRSA_BATCH)
++-	if [ -e "$EASYRSA_PKI" ]; then
++-		confirm "Confirm removal: " "yes" "
++-WARNING!!!
++-
++-You are about to remove the EASYRSA_PKI at: $EASYRSA_PKI
++-and initialize a fresh PKI here."
++-		# now remove it:
++-		rm -rf "$EASYRSA_PKI" || die "Removal of PKI dir failed. Check/correct errors above"
++-	fi
+++	rm -rf "$EASYRSA_PKI" || die "Removal of PKI dir failed. Check/correct errors above"
++ 
++ 	# new dirs:
++ 	for i in private reqs; do
++@@ -699,6 +691,7 @@ current CA keypair. If you intended to s
++ 
++ 	#shellcheck disable=SC2086
++ 	easyrsa_openssl req -utf8 -new -key "$out_key_tmp" \
+++		-subj "/CN=pcwrt-ca" \
++ 		-keyout "$out_key_tmp" -out "$out_file_tmp" $crypto_opts $opts ${EASYRSA_PASSIN:+-passin "$EASYRSA_PASSIN"} || \
++ 		die "Failed to build the CA"
++ 
++@@ -1670,7 +1663,7 @@ vars_setup() {
++ 	prog_dir="${prog_file%/*}"
++ 	prog_vars="${prog_dir}/vars"
++ 	# set up PKI path
++-	pki_vars="${EASYRSA_PKI:-$PWD/pki}/vars"
+++	pki_vars="${EASYRSA_PKI:-$EASYRSA/pki}/vars"
++ 
++ 	# command-line path:
++ 	if [ ! -z "$EASYRSA_VARS_FILE" ]; then
++@@ -1710,7 +1703,7 @@ Note: using Easy-RSA configuration from:
++ 	# Set defaults, preferring existing env-vars if present
++ 	set_var EASYRSA		"$prog_dir"
++ 	set_var EASYRSA_OPENSSL	openssl
++-	set_var EASYRSA_PKI	"$PWD/pki"
+++	set_var EASYRSA_PKI	"$EASYRSA/pki"
++ 	set_var EASYRSA_DN	cn_only
++ 	set_var EASYRSA_REQ_COUNTRY	"US"
++ 	set_var EASYRSA_REQ_PROVINCE	"California"
+-- 
+2.34.1
+

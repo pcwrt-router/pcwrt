@@ -1,0 +1,170 @@
+From 030d3710cb27aa7c7f5f4ba9c2ed4e97e0305f8a Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Fri, 18 Aug 2023 18:37:12 -0500
+Subject: [PATCH 3/3] Configuration changes to support VPN
+
+---
+ .../base-files/files/etc/config/vpn-ifaces    |  0
+ package/base-files/files/lib/functions.sh     |  6 ++
+ .../base-files/files/lib/functions/network.sh | 89 +++++++++++++++++++
+ .../config/firewall/files/firewall.hotplug    | 28 +++++-
+ 4 files changed, 122 insertions(+), 1 deletion(-)
+ create mode 100644 package/base-files/files/etc/config/vpn-ifaces
+
+diff --git a/package/base-files/files/etc/config/vpn-ifaces b/package/base-files/files/etc/config/vpn-ifaces
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/package/base-files/files/lib/functions.sh b/package/base-files/files/lib/functions.sh
+index 2bad45324f..2ab1f2abde 100644
+--- a/package/base-files/files/lib/functions.sh
++++ b/package/base-files/files/lib/functions.sh
+@@ -384,4 +384,10 @@ board_name() {
+ 	[ -e /tmp/sysinfo/board_name ] && cat /tmp/sysinfo/board_name || echo "generic"
+ }
+ 
++is_service_running() {
++    [ -z "$1" ] && return 0
++
++    ubus call service list "{\"name\": \"$1\"}" | jsonfilter -e "@.${1}.instances.instance1.running"
++}
++
+ [ -z "$IPKG_INSTROOT" ] && [ -f /lib/config/uci.sh ] && . /lib/config/uci.sh
+diff --git a/package/base-files/files/lib/functions/network.sh b/package/base-files/files/lib/functions/network.sh
+index 055f18c11e..dd2e1c7611 100644
+--- a/package/base-files/files/lib/functions/network.sh
++++ b/package/base-files/files/lib/functions/network.sh
+@@ -309,3 +309,92 @@ network_ready_device()
+ 
+ # flush the internal value cache to force re-reading values from ubus
+ network_flush_cache() { unset __NETWORK_CACHE; }
++
++network_get_vpnuser_ip() {
++    local vpn=$1
++    local user users uname nets fwd fwds wanok
++    local vpns=''
++    local ips=''
++
++    if [ -z "$vpn" ]; then
++	ifconfig tun1 >/dev/null 2>&1 || ifconfig wg1 >/dev/null 2>&1 ||
++	    ip rule | grep -E 'from ([0-9.]*) lookup 220' >/dev/null 2>&1 ||
++	vpns='openvpn ipsec wg'
++    elif [ "$vpn" = "openvpn" ]; then
++	vpns='openvpn'
++	ifconfig wg1 >/dev/null 2>&1 ||
++	    ip rule | grep -E 'from ([0-9.]*) lookup 220' >/dev/null 2>&1 ||
++	 vpns="$vpns ipsec wg"
++    elif [ "$vpn" = "ipsec" ]; then
++	vpns='ipsec'
++	ifconfig wg1 >/dev/null 2>&1 || {
++	    vpns="$vpns wg"
++	    ifconfig tun1 >/dev/null 2>&1 || vpns="$vpns openvpn"
++	}
++    elif [ "$vpn" = "wg" ]; then
++	vpns='wg'
++	ifconfig tun1 >/dev/null 2>&1 || vpns="$vpns openvpn"
++	ip rule | grep -E 'from ([0-9.]*) lookup 220' >/dev/null 2>&1 || vpns="$vpns ipsec"
++    fi
++
++    for vpn in $vpns; do
++	[ "$vpn" = "openvpn" ] && {
++	    wanok=
++	    fwds=$(uci show firewall | sed -n 's/=forwarding//gp')
++	    for fwd in $fwds; do
++		[ "$(uci -q get ${fwd}.src)" = "vpn" -a "$(uci -q get ${fwd}.dest)" = "wan" ] && {
++		    wanok=openvpn
++		    break
++		}
++	    done
++
++	    [ "$wanok" = "openvpn" ] && {
++		users=$(uci show openvpn | sed -n s'/=user//gp')
++		for user in $users; do
++		    if [ "$(uci -q get ${user}.vpnout)" = "1" ]; then
++			uname=$(uci -q get ${user}.name)
++			ips="$ips $(sed -r -n s'/ifconfig-push ([0-9.]*).*/\1/p' /etc/openvpn/ccd/${uname})"
++		    fi
++		done
++	    }
++	}
++
++	[ "$vpn" = "ipsec" ] && {
++	    nets=$(uci -q get ipsec.@server[0].nets)
++	    case "$nets" in
++		*wan*)
++		    users=$(uci show ipsec | sed -n s'/=user//gp')
++		    for user in $users; do
++			if [ "$(uci -q get ${user}.vpnout)" = "1" ]; then
++			    ips="$ips $(uci -q get ${user}.ip)"
++			fi
++		    done
++		    ;;
++		*)
++		    ;;
++	    esac
++	}
++
++	[ "$vpn" = "wg" ] && {
++	    wanok=
++	    fwds=$(uci show firewall | sed -n 's/=forwarding//gp')
++	    for fwd in $fwds; do
++		[ "$(uci -q get ${fwd}.src)" = "wg" -a "$(uci -q get ${fwd}.dest)" = "wan" ] && {
++		    wanok=wg
++		    break
++		}
++	    done
++
++	    [ "$wanok" = "wg" ] && {
++		users=$(uci show wg | sed -n s'/=peer//gp')
++		for user in $users; do
++		    if [ "$(uci -q get ${user}.vpnout)" = "1" ]; then
++			ips="$ips $(uci -q get ${user}.ip)"
++		    fi
++		done
++	    }
++	}
++    done
++
++    echo $ips
++}
+diff --git a/package/network/config/firewall/files/firewall.hotplug b/package/network/config/firewall/files/firewall.hotplug
+index f1eab001d4..0a81121821 100644
+--- a/package/network/config/firewall/files/firewall.hotplug
++++ b/package/network/config/firewall/files/firewall.hotplug
+@@ -5,7 +5,33 @@
+ 
+ /etc/init.d/firewall enabled || exit 0
+ 
+-fw3 -q network "$INTERFACE" >/dev/null || exit 0
++ip rule list | grep fwmark >/dev/null 2>&1 || {
++    ip rule add fwmark 0x10 lookup main priority 218
++    ip rule add fwmark 0x20 lookup 220 priority 220
++    ip rule add lookup 256 priority 256
++}
++
++if [ "$INTERFACE" = wan ]; then
++    if [ "$ACTION" = ifup -o "$ACTION" = ifupdate ]; then
++	ip route show table main | grep -E '^default' | while read ROUTE; do
++	    ip route show table 256 | grep -E '^default' >/dev/null 2>&1 && ip route change table 256 $ROUTE
++	    ip route show table 256 | grep -E '^default' >/dev/null 2>&1 || ip route add table 256 $ROUTE
++	done
++    fi
++fi
++
++dr=$(ip route show table 256 | grep -E '^default')
++ip route flush table 256
++[ -n "$dr" ] && ip route add table 256 $dr
++ip route show table main | grep -Ev '^(0.0.0.0|128.0.0.0|default)' | while read ROUTE; do
++    ip route add table 256 $ROUTE
++done
+ 
++ip route show table main | grep -E '^(0.0.0.0|128.0.0.0)' >/dev/null 2>&1 || {
++    ip route add table main 0.0.0.0/1 via 127.0.0.1 dev lo
++    ip route add table main 128.0.0.0/1 via 127.0.0.1 dev lo
++}
++
++fw3 -q network "$INTERFACE" >/dev/null || exit 0
+ logger -t firewall "Reloading firewall due to $ACTION of $INTERFACE ($DEVICE)"
+ fw3 -q reload
+-- 
+2.34.1
+

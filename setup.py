@@ -59,36 +59,41 @@ def reset_tree():
     finally:
         os.chdir(base_dir)
 
-def setup_tree():
+def _apply_patches():
     try:
         print("### Applying patches")
-
         patches = []
         patch_folders = config.get("patch_folders")
         if not patch_folders:
             patch_folders = []
 
         for folder in patch_folders:
-            patch_folder = base_dir / folder
+            patch_folder = base_dir/folder
             if not patch_folder.is_dir():
-                print(f"Patch folder {patch_folder} not found")
-                sys.exit(-1)
-
-            print(f"Adding patches from {patch_folder}")
-
-            patches.extend(
-                sorted(list((base_dir / folder).glob("*.patch")), key=os.path.basename)
-            )
+                print(f"Patch folder {patch_folder} not found, ignoring...")
+            else:
+                print(f"Adding patches from {patch_folder}")
+                patches.extend(
+                    sorted(list((base_dir/folder).glob("*.patch")), key=os.path.basename)
+                )
 
         print(f"Found {len(patches)} patches")
 
         os.chdir(openwrt)
-
         for patch in patches:
-            run(["git", "am", "-3", str(base_dir / patch)], check=True)
+            run(["git", "am", "-3", str(patch)], check=True)
         print("### Patches done")
+    except Exception as err:
+        print(err)
+        print("### Setting up the tree failed")
+        sys.exit(1)
+    finally:
+        os.chdir(base_dir)
 
+def _update_feeds():
+    try:
         print('### Installing feeds')
+        os.chdir(openwrt)
         run(
             ["scripts/feeds", "update", "-a"], check=True,
         )
@@ -115,6 +120,51 @@ def setup_tree():
         sys.exit(1)
     finally:
         os.chdir(base_dir)
+
+def _reset_feeds_packages():
+    try:
+        print('### Resetting feeds/packages')
+        os.chdir('%s/feeds/packages' % openwrt)
+        run(["git", "reset", "--hard", config.get("feeds_packages_revision")], check=True)
+    except:
+        print('### Resetting feeds/packages failed')
+    finally:
+        os.chdir(base_dir)
+
+def _apply_feeds_packages_patches():
+    try:
+        print('### Patching feeds/packages')
+        patches = []
+        patch_folders = config.get('feeds_packages_patch_folders')
+        if not patch_folders:
+            patch_folders = []
+
+        for folder in patch_folders:
+            patch_folder = base_dir/folder
+            if not patch_folder.is_dir():
+                print(f"Patch folder {patch_folder} not found, ignoring...")
+            else:
+                print(f"Adding patches from {patch_folder}")
+                patches.extend(
+                    sorted(list((base_dir/folder).glob("*.patch")), key=os.path.basename)
+                )
+
+        print(f"Found {len(patches)} patches")
+
+        os.chdir('%s/feeds/packages' % openwrt)
+        for patch in patches:
+            run(["git", "am", "-3", str(patch)], check=True)
+        print('### Done patching feeds/packages')
+    except:
+        print('### Patching feeds/packages failed')
+    finally:
+        os.chdir(base_dir)
+
+def setup_tree():
+    _apply_patches()
+    _update_feeds()
+    _reset_feeds_packages()
+    _apply_feeds_packages_patches()
 
 def update_patches():
     try:

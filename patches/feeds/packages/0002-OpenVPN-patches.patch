@@ -1,0 +1,1920 @@
+From 2133176afc3b43211b0f9b4f508a451a0b2f4f65 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Fri, 18 Aug 2023 21:23:48 -0500
+Subject: [PATCH 2/2] OpenVPN patches
+
+---
+ net/openvpn/Makefile                          |  61 ++-
+ net/openvpn/files/client.conf.template        |  29 +
+ net/openvpn/files/firewall.include            |  68 +++
+ net/openvpn/files/openvpn.config              | 510 +-----------------
+ net/openvpn/files/openvpn.hotplug             |  10 +
+ net/openvpn/files/openvpn.init                | 270 ++--------
+ net/openvpn/files/openvpn.pam                 |   7 +
+ net/openvpn/files/openvpn.uci-default         |  45 ++
+ net/openvpn/files/openvpnc.init               |  99 ++++
+ net/openvpn/files/server.conf.template        |  34 ++
+ net/openvpn/files/update-resolv-conf          |  55 ++
+ ...dd-SO_REUSEADDR-option-to-udp-socket.patch |  23 +
+ ...dd-pam-auth-module-for-pcwrt-openvpn.patch | 209 +++++++
+ .../patches/910-tunnelblick-scramble.patch    | 305 +++++++++++
+ 14 files changed, 975 insertions(+), 750 deletions(-)
+ create mode 100644 net/openvpn/files/client.conf.template
+ create mode 100644 net/openvpn/files/firewall.include
+ create mode 100644 net/openvpn/files/openvpn.hotplug
+ create mode 100644 net/openvpn/files/openvpn.pam
+ create mode 100644 net/openvpn/files/openvpn.uci-default
+ create mode 100644 net/openvpn/files/openvpnc.init
+ create mode 100644 net/openvpn/files/server.conf.template
+ create mode 100755 net/openvpn/files/update-resolv-conf
+ create mode 100644 net/openvpn/patches/899-add-SO_REUSEADDR-option-to-udp-socket.patch
+ create mode 100644 net/openvpn/patches/900-add-pam-auth-module-for-pcwrt-openvpn.patch
+ create mode 100644 net/openvpn/patches/910-tunnelblick-scramble.patch
+
+diff --git a/net/openvpn/Makefile b/net/openvpn/Makefile
+index 72ef7ff3d..3e6f6d58e 100644
+--- a/net/openvpn/Makefile
++++ b/net/openvpn/Makefile
+@@ -35,7 +35,7 @@ define Package/openvpn/Default
+   URL:=http://openvpn.net
+   SUBMENU:=VPN
+   MENU:=1
+-  DEPENDS:=+kmod-tun +OPENVPN_$(1)_ENABLE_LZO:liblzo +OPENVPN_$(1)_ENABLE_IPROUTE2:ip $(3)
++  DEPENDS:=+libpam +kmod-tun +OPENVPN_$(1)_ENABLE_LZO:liblzo +OPENVPN_$(1)_ENABLE_IPROUTE2:ip $(3)
+   VARIANT:=$(1)
+   PROVIDES:=openvpn openvpn-crypto
+ endef
+@@ -69,7 +69,7 @@ define Build/Configure
+ 		$(if $(CONFIG_OPENVPN_$(BUILD_VARIANT)_ENABLE_SMALL),--enable-small) \
+ 		--disable-selinux \
+ 		--disable-systemd \
+-		--disable-plugins \
++		--enable-plugins \
+ 		--disable-debug \
+ 		--disable-pkcs11 \
+ 		$(if $(CONFIG_OPENVPN_$(BUILD_VARIANT)_ENABLE_LZO),--enable,--disable)-lzo \
+@@ -82,6 +82,7 @@ define Build/Configure
+ 		$(if $(CONFIG_OPENVPN_$(BUILD_VARIANT)_ENABLE_DEF_AUTH),--enable,--disable)-def-auth \
+ 		$(if $(CONFIG_OPENVPN_$(BUILD_VARIANT)_ENABLE_PF),--enable,--disable)-pf \
+ 		$(if $(CONFIG_OPENVPN_$(BUILD_VARIANT)_ENABLE_PORT_SHARE),--enable,--disable)-port-share \
++		--enable-plugin-auth-pam \
+ 		$(if $(CONFIG_OPENVPN_OPENSSL),--with-crypto-library=openssl) \
+ 		$(if $(CONFIG_OPENVPN_MBEDTLS),--with-crypto-library=mbedtls) \
+ 	)
+@@ -89,55 +90,85 @@ endef
+ 
+ define Package/openvpn-$(BUILD_VARIANT)/conffiles
+ /etc/config/openvpn
+-/etc/openvpn.user
+ endef
+ 
+ define Package/openvpn-$(BUILD_VARIANT)/install
+ 	$(INSTALL_DIR) \
+ 		$(1)/usr/sbin \
++		$(1)/usr/lib \
+ 		$(1)/usr/share/openvpn \
+ 		$(1)/etc/init.d \
+ 		$(1)/etc/config \
+ 		$(1)/etc/openvpn \
+-		$(1)/lib/functions \
++		$(1)/etc/openvpn/ccd \
++		$(1)/etc/openvpn/clients \
++		$(1)/etc/pam.d \
++		$(1)/lib/security \
++		$(1)/usr/lib/security \
++		$(1)/etc/uci-defaults \
+ 		$(1)/lib/upgrade/keep.d \
+-		$(1)/usr/libexec \
+-		$(1)/etc/hotplug.d/openvpn
++		$(1)/etc/hotplug.d/iface \
+ 
+ 	$(INSTALL_BIN) \
+ 		$(PKG_INSTALL_DIR)/usr/sbin/openvpn \
+ 		$(1)/usr/sbin/
+ 
++	$(INSTALL_BIN) \
++		$(PKG_INSTALL_DIR)/usr/lib/openvpn/plugins/openvpn-plugin-auth-pam.so \
++		$(1)/usr/lib/
++
++	$(INSTALL_BIN) \
++		$(PKG_INSTALL_DIR)/usr/lib/openvpn/plugins/pam_vpnauth.so \
++		$(1)/lib/security
++		ln -s /lib/security/pam_vpnauth.so $(1)/usr/lib/security/pam_vpnauth.so
++
+ 	$(INSTALL_BIN) \
+ 		files/openvpn.init \
+ 		$(1)/etc/init.d/openvpn
+ 
+ 	$(INSTALL_BIN) \
+-		files/usr/libexec/openvpn-hotplug \
+-		$(1)/usr/libexec/openvpn-hotplug
++		files/openvpnc.init \
++		$(1)/etc/init.d/openvpnc
+ 
+ 	$(INSTALL_DATA) \
+-		files/lib/functions/openvpn.sh \
+-		$(1)/lib/functions/openvpn.sh
++		files/server.conf.template \
++		$(1)/etc/openvpn/server.conf.template
+ 
+ 	$(INSTALL_DATA) \
+-		files/etc/hotplug.d/openvpn/01-user \
+-		$(1)/etc/hotplug.d/openvpn/01-user
++		files/client.conf.template \
++		$(1)/etc/openvpn/client.conf.template
+ 
+-	$(INSTALL_DATA) \
+-		files/etc/openvpn.user \
+-		$(1)/etc/openvpn.user
++	$(INSTALL_BIN) \
++		files/openvpn.hotplug \
++		$(1)/etc/hotplug.d/iface/15-openvpn
++
++	$(INSTALL_BIN) \
++		files/openvpn.uci-default \
++		$(1)/etc/uci-defaults/99-openvpnc
++
++	$(INSTALL_BIN) \
++		files/update-resolv-conf \
++		$(1)/etc/openvpn/update-resolv-conf
+ 
+ 	$(INSTALL_DATA) \
+ 		files/openvpn.options \
+ 		$(1)/usr/share/openvpn/openvpn.options
+ 
++	$(INSTALL_DATA) \
++		files/firewall.include \
++		$(1)/usr/share/openvpn/firewall.include
++
+ 	$(INSTALL_CONF) files/openvpn.config \
+ 		$(1)/etc/config/openvpn
+ 
++	$(INSTALL_CONF) files/openvpn.pam \
++		$(1)/etc/pam.d/vpn-auth
++
+ 	$(INSTALL_DATA) \
+ 		files/openvpn.upgrade \
+ 		$(1)/lib/upgrade/keep.d/openvpn
++
++	ln -s /var/openvpn/client.auth $(1)/etc/openvpn/clients/client_auth
+ endef
+ 
+ $(eval $(call BuildPackage,openvpn-openssl))
+diff --git a/net/openvpn/files/client.conf.template b/net/openvpn/files/client.conf.template
+new file mode 100644
+index 000000000..c429d1143
+--- /dev/null
++++ b/net/openvpn/files/client.conf.template
+@@ -0,0 +1,29 @@
++client
++dev tun
++proto udp
++remote <%=server%> <%=port%>
++resolv-retry infinite
++nobind
++persist-key
++persist-tun
++<ca>
++<%=cacert%></ca>
++auth-user-pass
++auth-nocache
++remote-cert-tls server
++key-direction 1
++auth SHA256
++<tls-auth>
++<%=tlsauth%></tls-auth>
++cipher AES-256-GCM
++tun-mtu 1500
++tun-mtu-extra 32
++mssfix 1450
++reneg-sec 0
++fast-io
++verb 3
++<%=scramble%>
++# Uncomment the following lines on a Unix system to prevent DNS leak
++#script-security 2
++#up /etc/openvpn/update-resolv-conf
++#down /etc/openvpn/update-resolv-conf
+diff --git a/net/openvpn/files/firewall.include b/net/openvpn/files/firewall.include
+new file mode 100644
+index 000000000..5fa1d80d7
+--- /dev/null
++++ b/net/openvpn/files/firewall.include
+@@ -0,0 +1,68 @@
++#!/bin/sh
++. /lib/functions.sh
++. /lib/functions/system.sh
++. /lib/functions/network.sh
++
++zones=`uci show firewall | sed -n s'/=zone//gp'`
++for zone in $zones; do
++    name=`uci -q get ${zone}.name`
++    if [ "$name" != "wan" -a "$name" != "vpnc" -a "$name" != "wgc" ]; then
++	nets="$nets $name"
++    fi
++done
++
++ifaces=$(uci show vpn-ifaces | sed -n s'/=vpn-iface//gp')
++for iface in $ifaces; do
++    name=$(uci -q get ${iface}.vpn)
++    if [ "$name" = "openvpn" ]; then
++	localifs="$localifs $(uci -q get ${iface}.iface)"
++    fi
++done
++localifs=$(echo $localifs)
++
++iptables -t mangle -F vpn_prerouting_rule >/dev/null 2>&1 || iptables -t mangle -N vpn_prerouting_rule
++iptables -t mangle -C PREROUTING -j vpn_prerouting_rule 2>/dev/null || iptables -t mangle -I PREROUTING -j vpn_prerouting_rule
++
++for net in $nets; do
++    network_get_device iface $net
++    case "$localifs" in
++	*${net}*)
++	    iptables -t mangle -A vpn_prerouting_rule -i $iface -j MARK --set-mark 0x10/0x10
++	    ;;
++	*)
++	    ;;
++    esac
++done
++
++iptables -S forwarding_rule | grep '!fw3: ovpn' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++ips=$(network_get_vpnuser_ip openvpn)
++[ "$(is_service_running openvpnc)" = "true" ] && {
++    ifconfig tun1 >/dev/null 2>&1 && {
++	for ip in $ips; do
++	    iptables -t mangle -A vpn_prerouting_rule -s $ip -j MARK --set-mark 0x10/0x10
++	    iptables -A forwarding_rule -s $ip -m comment --comment '!fw3: ovpn' -j zone_vpnc_dest_ACCEPT
++	done
++    }
++
++    vpnrule=$(ip rule show | sed -n 's/^217:\s*//p')
++    [ -n "$vpnrule" ] && ip rule del $vpnrule
++
++    vpnip=$(ifconfig tun1 2>/dev/null | sed -r -n 's/.*inet addr:[[:space:]]*([^ ]*).*/\1/p')
++    [ -n "$vpnip" ] && {
++	ip rule add from $vpnip lookup main priority 217
++    }
++}
++
++iptables -S zone_wan_input | grep '!fw3: ovpn' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++[ "$(is_service_running openvpn)" = "true" ] && {
++    port=$(uci get openvpn.@server[0].port)
++    [ "$port" -gt 0 ] && {
++	iptables -I zone_wan_input 2 -p udp -m udp --dport ${port} -m comment --comment '!fw3: ovpn' -j ACCEPT
++    }
++}
+diff --git a/net/openvpn/files/openvpn.config b/net/openvpn/files/openvpn.config
+index ea442c765..fe005ec97 100644
+--- a/net/openvpn/files/openvpn.config
++++ b/net/openvpn/files/openvpn.config
+@@ -1,506 +1,4 @@
+-package openvpn
+-
+-#################################################
+-# Sample to include a custom config file.       #
+-#################################################
+-
+-config openvpn custom_config
+-
+-	# Set to 1 to enable this instance:
+-	option enabled 0
+-
+-	# Credentials to login
+-	#option username 'login'
+-	#option password 'password'
+-
+-	# Password for client certificate
+-	#option cert_password 'cert_password'
+-
+-	# Include OpenVPN configuration
+-	option config /etc/openvpn/my-vpn.conf
+-
+-
+-#################################################
+-# Sample OpenVPN 2.0 uci config for             #
+-# multi-client server.                          #
+-#################################################
+-
+-config openvpn sample_server
+-
+-	# Set to 1 to enable this instance:
+-	option enabled 0
+-
+-	# Which local IP address should OpenVPN
+-	# listen on? (optional)
+-#	option local 0.0.0.0
+-
+-	# Which TCP/UDP port should OpenVPN listen on?
+-	# If you want to run multiple OpenVPN instances
+-	# on the same machine, use a different port
+-	# number for each one.  You will need to
+-	# open up this port on your firewall.
+-	option port 1194
+-
+-	# TCP or UDP server?
+-#	option proto tcp
+-	option proto udp
+-
+-	# "dev tun" will create a routed IP tunnel,
+-	# "dev tap" will create an ethernet tunnel.
+-	# Use "dev tap0" if you are ethernet bridging
+-	# and have precreated a tap0 virtual interface
+-	# and bridged it with your ethernet interface.
+-	# If you want to control access policies
+-	# over the VPN, you must create firewall
+-	# rules for the the TUN/TAP interface.
+-	# On non-Windows systems, you can give
+-	# an explicit unit number, such as tun0.
+-	# On Windows, use "dev-node" for this.
+-	# On most systems, the VPN will not function
+-	# unless you partially or fully disable
+-	# the firewall for the TUN/TAP interface.
+-#	option dev tap
+-	option dev tun
+-
+-	# SSL/TLS root certificate (ca), certificate
+-	# (cert), and private key (key).  Each client
+-	# and the server must have their own cert and
+-	# key file.  The server and all clients will
+-	# use the same ca file.
+-	#
+-	# See the "easy-rsa" directory for a series
+-	# of scripts for generating RSA certificates
+-	# and private keys.  Remember to use
+-	# a unique Common Name for the server
+-	# and each of the client certificates.
+-	#
+-	# Any X509 key management system can be used.
+-	# OpenVPN can also use a PKCS #12 formatted key file
+-	# (see "pkcs12" directive in man page).
+-	option ca /etc/openvpn/ca.crt
+-	option cert /etc/openvpn/server.crt
+-	# This file should be kept secret:
+-	option key /etc/openvpn/server.key
+-
+-	# Diffie hellman parameters.
+-	# Generate your own with:
+-	#   openssl dhparam -out dh2048.pem 2048
+-	# Substitute 2048 for 1024 if you are using
+-	# 1024 bit keys.
+-	option dh /etc/openvpn/dh2048.pem
+-
+-	# Configure server mode and supply a VPN subnet
+-	# for OpenVPN to draw client addresses from.
+-	# The server will take 10.8.0.1 for itself,
+-	# the rest will be made available to clients.
+-	# Each client will be able to reach the server
+-	# on 10.8.0.1. Comment this line out if you are
+-	# ethernet bridging. See the man page for more info.
+-	option server "10.8.0.0 255.255.255.0"
+-
+-	# Maintain a record of client <-> virtual IP address
+-	# associations in this file.  If OpenVPN goes down or
+-	# is restarted, reconnecting clients can be assigned
+-	# the same virtual IP address from the pool that was
+-	# previously assigned.
+-	option ifconfig_pool_persist /tmp/ipp.txt
+-
+-	# Configure server mode for ethernet bridging.
+-	# You must first use your OS's bridging capability
+-	# to bridge the TAP interface with the ethernet
+-	# NIC interface.  Then you must manually set the
+-	# IP/netmask on the bridge interface, here we
+-	# assume 10.8.0.4/255.255.255.0.  Finally we
+-	# must set aside an IP range in this subnet
+-	# (start=10.8.0.50 end=10.8.0.100) to allocate
+-	# to connecting clients.  Leave this line commented
+-	# out unless you are ethernet bridging.
+-#	option server_bridge "10.8.0.4 255.255.255.0 10.8.0.50 10.8.0.100"
+-
+-	# Push routes to the client to allow it
+-	# to reach other private subnets behind
+-	# the server.  Remember that these
+-	# private subnets will also need
+-	# to know to route the OpenVPN client
+-	# address pool (10.8.0.0/255.255.255.0)
+-	# back to the OpenVPN server.
+-#	list push "route 192.168.10.0 255.255.255.0"
+-#	list push "route 192.168.20.0 255.255.255.0"
+-
+-	# To assign specific IP addresses to specific
+-	# clients or if a connecting client has a private
+-	# subnet behind it that should also have VPN access,
+-	# use the subdirectory "ccd" for client-specific
+-	# configuration files (see man page for more info).
+-
+-	# EXAMPLE: Suppose the client
+-	# having the certificate common name "Thelonious"
+-	# also has a small subnet behind his connecting
+-	# machine, such as 192.168.40.128/255.255.255.248.
+-	# First, uncomment out these lines:
+-#	option client_config_dir /etc/openvpn/ccd
+-#	list route "192.168.40.128 255.255.255.248"
+-	# Then create a file ccd/Thelonious with this line:
+-	#   iroute 192.168.40.128 255.255.255.248
+-	# This will allow Thelonious' private subnet to
+-	# access the VPN.  This example will only work
+-	# if you are routing, not bridging, i.e. you are
+-	# using "dev tun" and "server" directives.
+-
+-	# EXAMPLE: Suppose you want to give
+-	# Thelonious a fixed VPN IP address of 10.9.0.1.
+-	# First uncomment out these lines:
+-#	option client_config_dir /etc/openvpn/ccd
+-#	list route "10.9.0.0 255.255.255.252"
+-#	list route "192.168.100.0 255.255.255.0"
+-	# Then add this line to ccd/Thelonious:
+-	#   ifconfig-push "10.9.0.1 10.9.0.2"
+-
+-	# Suppose that you want to enable different
+-	# firewall access policies for different groups
+-	# of clients.  There are two methods:
+-	# (1) Run multiple OpenVPN daemons, one for each
+-	#     group, and firewall the TUN/TAP interface
+-	#     for each group/daemon appropriately.
+-	# (2) (Advanced) Create a script to dynamically
+-	#     modify the firewall in response to access
+-	#     from different clients.  See man
+-	#     page for more info on learn-address script.
+-#	option learn_address /etc/openvpn/script
+-
+-	# If enabled, this directive will configure
+-	# all clients to redirect their default
+-	# network gateway through the VPN, causing
+-	# all IP traffic such as web browsing and
+-	# and DNS lookups to go through the VPN
+-	# (The OpenVPN server machine may need to NAT
+-	# the TUN/TAP interface to the internet in
+-	# order for this to work properly).
+-	# CAVEAT: May break client's network config if
+-	# client's local DHCP server packets get routed
+-	# through the tunnel.  Solution: make sure
+-	# client's local DHCP server is reachable via
+-	# a more specific route than the default route
+-	# of 0.0.0.0/0.0.0.0.
+-#	list push "redirect-gateway"
+-
+-	# Certain Windows-specific network settings
+-	# can be pushed to clients, such as DNS
+-	# or WINS server addresses.  CAVEAT:
+-	# http://openvpn.net/faq.html#dhcpcaveats
+-#	list push "dhcp-option DNS 10.8.0.1"
+-#	list push "dhcp-option WINS 10.8.0.1"
+-
+-	# Uncomment this directive to allow different
+-	# clients to be able to "see" each other.
+-	# By default, clients will only see the server.
+-	# To force clients to only see the server, you
+-	# will also need to appropriately firewall the
+-	# server's TUN/TAP interface.
+-#	option client_to_client 1
+-
+-	# Uncomment this directive if multiple clients
+-	# might connect with the same certificate/key
+-	# files or common names.  This is recommended
+-	# only for testing purposes.  For production use,
+-	# each client should have its own certificate/key
+-	# pair.
+-	#
+-	# IF YOU HAVE NOT GENERATED INDIVIDUAL
+-	# CERTIFICATE/KEY PAIRS FOR EACH CLIENT,
+-	# EACH HAVING ITS OWN UNIQUE "COMMON NAME",
+-	# UNCOMMENT THIS LINE OUT.
+-#	option duplicate_cn 1
+-
+-	# The keepalive directive causes ping-like
+-	# messages to be sent back and forth over
+-	# the link so that each side knows when
+-	# the other side has gone down.
+-	# Ping every 10 seconds, assume that remote
+-	# peer is down if no ping received during
+-	# a 120 second time period.
+-	option keepalive "10 120"
+-
+-	# For extra security beyond that provided
+-	# by SSL/TLS, create an "HMAC firewall"
+-	# to help block DoS attacks and UDP port flooding.
+-	#
+-	# Generate with:
+-	#   openvpn --genkey --secret ta.key
+-	#
+-	# The server and each client must have
+-	# a copy of this key.
+-	# The second parameter should be '0'
+-	# on the server and '1' on the clients.
+-	# This file is secret:
+-#	option tls_auth "/etc/openvpn/ta.key 0"
+-
+-	# For additional privacy, a shared secret key
+-	# can be used for both authentication (as in tls_auth)
+-	# and encryption of the TLS control channel.
+-	#
+-	# Generate a shared secret with:
+-	# openvpn --genkey --secret ta.key
+-	#
+-	# The server and each client must have
+-	# a copy of this key.
+-	#
+-	# tls_auth and tls_crypt should NOT
+-	# be combined, as tls_crypt implies tls_auth.
+-	# Use EITHER tls_crypt, tls_auth, or neither option.
+-#	option tls_crypt "/etc/openvpn/ta.key"
+-
+-	# Set the minimum required TLS protocol version
+-	# for all connections.
+-	#
+-	# Require at least TLS 1.1
+-#	option tls_version_min "1.1"
+-	# Require at least TLS 1.2
+-#	option tls_version_min "1.2"
+-	# Require TLS 1.2, or the highest version supported
+-	# on the system
+-#	option tls_version_min "1.2 'or-highest'"
+-
+-	# List the preferred ciphers to use for the data channel.
+-	# Run openvpn --show-ciphers to see all supported ciphers.
+-#	list data_ciphers 'AES-256-GCM'
+-#	list data_ciphers 'AES-128-GCM'
+-#	list data_ciphers 'CHACHA20-POLY1305'
+-
+-	# Set a fallback cipher in order to be compatible with
+-	# peers that do not support cipher negotiation.
+-	#
+-	# Use AES-256-CBC as fallback
+-#	option data_ciphers_fallback 'AES-128-CBC'
+-	# Use AES-128-CBC as fallback
+-#	option data_ciphers_fallback 'AES-256-CBC'
+-	# Use Triple-DES as fallback
+-#	option data_ciphers_fallback 'DES-EDE3-CBC'
+-	# Use BF-CBC as fallback
+-#	option data_ciphers_fallback 'BF-CBC'
+-
+-	# OpenVPN versions 2.4 and later will attempt to
+-	# automatically negotiate the most secure cipher
+-	# between the client and server, regardless of a
+-	# configured "option cipher" (see below).
+-	# Automatic negotiation is recommended.
+-	#
+-	# Uncomment this option to disable this behavior,
+-	# and force all OpenVPN peers to use the configured
+-	# cipher option instead (not recommended).
+-#	option ncp_disable
+-
+-	# Enable compression on the VPN link.
+-	# If you enable it here, you must also
+-	# enable it in the client config file.
+-	#
+-	# Compression is not recommended, as compression and
+-	# encryption in combination can weaken the security
+-	# of the connection.
+-	#
+-	# LZ4 requires OpenVPN 2.4+ client and server
+-#	option compress lz4
+-	# LZO is available by default only in openvpn-openssl variant
+-	# LZO is compatible with most OpenVPN versions
+-#	option compress lzo
+-	
+-	# Control how OpenVPN handles peers using compression
+-	#
+-	# Do not allow any connections using compression
+-#	option allow_compression 'no'
+-	# Allow incoming compressed packets, but do not send compressed packets to other peers
+-	# This can be useful when migrating old configurations with compression activated
+-#	option allow_compression 'asym'
+-	# Both incoming and outgoing packets may be compressed
+-#	option allow_compression 'yes'
+-
+-	# The maximum number of concurrently connected
+-	# clients we want to allow.
+-#	option max_clients 100
+-
+-	# The persist options will try to avoid
+-	# accessing certain resources on restart
+-	# that may no longer be accessible because
+-	# of the privilege downgrade.
+-	option persist_key 1
+-	option persist_tun 1
+-	option user nobody
+-
+-	# Output a short status file showing
+-	# current connections, truncated
+-	# and rewritten every minute.
+-	option status /tmp/openvpn-status.log
+-
+-	# By default, log messages will go to the syslog (or
+-	# on Windows, if running as a service, they will go to
+-	# the "\Program Files\OpenVPN\log" directory).
+-	# Use log or log-append to override this default.
+-	# "log" will truncate the log file on OpenVPN startup,
+-	# while "log-append" will append to it.  Use one
+-	# or the other (but not both).
+-#	option log         /tmp/openvpn.log
+-#	option log_append  /tmp/openvpn.log
+-
+-	# Set the appropriate level of log
+-	# file verbosity.
+-	#
+-	# 0 is silent, except for fatal errors
+-	# 4 is reasonable for general usage
+-	# 5 and 6 can help to debug connection problems
+-	# 9 is extremely verbose
+-	option verb 3
+-
+-	# Silence repeating messages.  At most 20
+-	# sequential messages of the same message
+-	# category will be output to the log.
+-#	option mute 20
+-
+-
+-##############################################
+-# Sample client-side OpenVPN 2.0 uci config  #
+-# for connecting to multi-client server.     #
+-##############################################
+-
+-config openvpn sample_client
+-
+-	# Set to 1 to enable this instance:
+-	option enabled 0
+-
+-	# Specify that we are a client and that we
+-	# will be pulling certain config file directives
+-	# from the server.
+-	option client 1
+-
+-	# Use the same setting as you are using on
+-	# the server.
+-	# On most systems, the VPN will not function
+-	# unless you partially or fully disable
+-	# the firewall for the TUN/TAP interface.
+-#	option dev tap
+-	option dev tun
+-
+-	# Are we connecting to a TCP or
+-	# UDP server?  Use the same setting as
+-	# on the server.
+-#	option proto tcp
+-	option proto udp
+-
+-	# The hostname/IP and port of the server.
+-	# You can have multiple remote entries
+-	# to load balance between the servers.
+-	list remote "my_server_1 1194"
+-#	list remote "my_server_2 1194"
+-
+-	# Choose a random host from the remote
+-	# list for load_balancing.  Otherwise
+-	# try hosts in the order specified.
+-#	option remote_random 1
+-
+-	# Keep trying indefinitely to resolve the
+-	# host name of the OpenVPN server.  Very useful
+-	# on machines which are not permanently connected
+-	# to the internet such as laptops.
+-	option resolv_retry infinite
+-
+-	# Most clients don't need to bind to
+-	# a specific local port number.
+-	option nobind 1
+-
+-	# Try to preserve some state across restarts.
+-	option persist_key 1
+-	option persist_tun 1
+-	option user nobody
+-
+-	# If you are connecting through an
+-	# HTTP proxy to reach the actual OpenVPN
+-	# server, put the proxy server/IP and
+-	# port number here.  See the man page
+-	# if your proxy server requires
+-	# authentication.
+-	# retry on connection failures:
+-#	option http_proxy_retry 1
+-	# specify http proxy address and port:
+-#	option http_proxy "192.168.1.100 8080"
+-
+-	# Wireless networks often produce a lot
+-	# of duplicate packets.  Set this flag
+-	# to silence duplicate packet warnings.
+-#	option mute_replay_warnings 1
+-
+-	# SSL/TLS parms.
+-	# See the server config file for more
+-	# description.  It's best to use
+-	# a separate .crt/.key file pair
+-	# for each client.  A single ca
+-	# file can be used for all clients.
+-	option ca /etc/openvpn/ca.crt
+-	option cert /etc/openvpn/client.crt
+-	option key /etc/openvpn/client.key
+-
+-	# Verify server certificate by checking
+-	# that the certicate has the key usage
+-	# field set to "server".  This is an
+-	# important precaution to protect against
+-	# a potential attack discussed here:
+-	#  http://openvpn.net/howto.html#mitm
+-	#
+-	# To use this feature, you will need to generate
+-	# your server certificates with the nsCertType
+-	# field set to "server".  The build_key_server
+-	# script in the easy_rsa folder will do this.
+-#	option remote_cert_tls server
+-
+-	# If a tls_auth key is used on the server
+-	# then every client must also have the key.
+-#	option tls_auth "/etc/openvpn/ta.key 1"
+-
+-	# If a tls_crypt key is used on the server
+-	# every client must also have the key.
+-#	option tls_crypt "/etc/openvpn/ta.key"
+-
+-	# Set the minimum required TLS protocol version
+-	# for all connections.
+-	#
+-	# Require at least TLS 1.1
+-#	option tls_version_min "1.1"
+-	# Require at least TLS 1.2
+-#	option tls_version_min "1.2"
+-	# Require TLS 1.2, or the highest version supported
+-	# on the system
+-#	option tls_version_min "1.2 'or-highest'"
+-
+-	# List the preferred ciphers for the data channel.
+-#	list data_ciphers 'AES-256-GCM'
+-#	list data_ciphers 'AES-128-GCM'
+-#	list data_ciphers 'CHACHA20-POLY1305'
+-
+-	# Set a fallback cipher if you connect to a peer that does
+-	# not support cipher negotiation.
+-	# Use AES-256-CBC as fallback
+-#	option data_ciphers_fallback 'AES-128-CBC'
+-	# Use AES-128-CBC as fallback
+-#	option data_ciphers_fallback 'AES-256-CBC'
+-	# Use Triple-DES as fallback
+-#	option data_ciphers_fallback 'DES-EDE3-CBC'
+-	# Use BF-CBC as fallback
+-#	option data_ciphers_fallback 'BF-CBC'
+-
+-	# Enable compression on the VPN link.
+-	# Don't enable this unless it is also
+-	# enabled in the server config file.
+-	#
+-	# Compression is not recommended, as compression and
+-	# encryption in combination can weaken the security
+-	# of the connection.
+-	#
+-	# LZ4 requires OpenVPN 2.4+ on server and client
+-#	option compress lz4
+-	# LZO is available by default only in openvpn-openssl variant
+-	# LZO is compatible with most OpenVPN versions
+-#	option compress lzo
+-
+-	# Set log file verbosity.
+-	option verb 3
+-
+-	# Silence repeating messages
+-#	option mute 20
++config server
++    option extaddr ''
++    option ipaddr '10.117.0.0'
++    option netmask '255.255.255.0'
+diff --git a/net/openvpn/files/openvpn.hotplug b/net/openvpn/files/openvpn.hotplug
+new file mode 100644
+index 000000000..0810a0d4a
+--- /dev/null
++++ b/net/openvpn/files/openvpn.hotplug
+@@ -0,0 +1,10 @@
++#!/bin/sh
++[ "$ACTION" = ifup -o "$ACTION" = ifupdate -o "$ACTION" = ifdown ] || exit 0
++
++/etc/init.d/openvpn enabled || exit 0
++
++if [ "$INTERFACE" = wan ]; then
++    if [ "$ACTION" = ifup -o "$ACTION" = ifupdate ]; then
++	/etc/init.d/openvpn restart
++    fi
++fi
+diff --git a/net/openvpn/files/openvpn.init b/net/openvpn/files/openvpn.init
+index f7dc006ce..66d8df932 100644
+--- a/net/openvpn/files/openvpn.init
++++ b/net/openvpn/files/openvpn.init
+@@ -10,244 +10,56 @@ STOP=10
+ USE_PROCD=1
+ PROG=/usr/sbin/openvpn
+ 
+-LIST_SEP="
+-"
+-
+-UCI_STARTED=
+-UCI_DISABLED=
+-
+-append_param() {
+-	local s="$1"
+-	local v="$2"
+-	case "$v" in
+-		*_*_*_*) v=${v%%_*}-${v#*_}; v=${v%%_*}-${v#*_}; v=${v%%_*}-${v#*_} ;;
+-		*_*_*)   v=${v%%_*}-${v#*_}; v=${v%%_*}-${v#*_} ;;
+-		*_*)     v=${v%%_*}-${v#*_} ;;
+-	esac
+-	echo -n "$v" >> "/var/etc/openvpn-$s.conf"
+-	return 0
+-}
+-
+-append_bools() {
+-	local p; local v; local s="$1"; shift
+-	for p in $*; do
+-		config_get_bool v "$s" "$p"
+-		[ "$v" = 1 ] && append_param "$s" "$p" && echo >> "/var/etc/openvpn-$s.conf"
+-	done
+-}
+-
+-append_params() {
+-	local p; local v; local s="$1"; shift
+-	for p in $*; do
+-		config_get v "$s" "$p"
+-		IFS="$LIST_SEP"
+-		for v in $v; do
+-			[ -n "$v" ] && [ "$p" != "push" ] && append_param "$s" "$p" && echo " $v" >> "/var/etc/openvpn-$s.conf"
+-			[ -n "$v" ] && [ "$p" = "push" ] && append_param "$s" "$p" && echo " \"$v\"" >> "/var/etc/openvpn-$s.conf"
+-		done
+-		unset IFS
+-	done
+-}
+-
+-append_list() {
+-	local p; local v; local s="$1"; shift
+-
+-	list_cb_append() {
+-		v="${v}:$1"
+-	}
+-
+-	for p in $*; do
+-		unset v
+-		config_list_foreach "$s" "$p" list_cb_append
+-		[ -n "$v" ] && append_param "$s" "$p" && echo " ${v:1}" >> "/var/etc/openvpn-$s.conf"
+-	done
+-}
+-
+-section_enabled() {
+-	config_get_bool enable  "$1" 'enable'  0
+-	config_get_bool enabled "$1" 'enabled' 0
+-	[ $enable -gt 0 ] || [ $enabled -gt 0 ]
+-}
+-
+-create_temp_file() {
+-	mkdir -p "$(dirname "$1")"
+-	rm -f "$1"
+-	touch "$1"
+-	chown root "$1"
+-	chmod 0600 "$1"
+-}
+-
+-openvpn_get_dev() {
+-	local dev dev_type
+-	local name="$1"
+-	local conf="$2"
+-
+-	# Do override only for configurations with config_file
+-	config_get config_file "$name" config
+-	[ -n "$config_file" ] || return
+-
+-	# Check there is someething to override
+-	config_get dev "$name" dev
+-	config_get dev_type "$name" dev_type
+-	[ -n "$dev" ] || return
+-
+-	# If there is a no dev_type, try to guess it
+-	if [ -z "$dev_type" ]; then
+-		. /lib/functions/openvpn.sh
+-
+-		local odev odev_type
+-		get_openvpn_option "$conf" odev dev
+-		get_openvpn_option "$conf" odev_type dev-type
+-		[ -n "$odev_type" ] || odev_type="$odev"
+-
+-		case "$odev_type" in
+-			tun*) dev_type="tun" ;;
+-			tap*) dev_type="tap" ;;
+-			*) return;;
+-		esac
+-	fi
+-
+-	# Return overrides
+-	echo "--dev-type $dev_type --dev $dev"
+-}
+-
+-openvpn_get_credentials() {
+-	local name="$1"
+-	local ret=""
+-
+-	config_get cert_password "$name" cert_password
+-	config_get password "$name" password
+-	config_get username "$name" username
+-
+-	if [ -n "$cert_password" ]; then
+-		create_temp_file /var/run/openvpn.$name.pass
+-		echo "$cert_password" > /var/run/openvpn.$name.pass
+-		ret=" --askpass /var/run/openvpn.$name.pass "
+-	fi
+-
+-	if [ -n "$username" ]; then
+-		create_temp_file /var/run/openvpn.$name.userpass
+-		echo "$username" > /var/run/openvpn.$name.userpass
+-		echo "$password" >> /var/run/openvpn.$name.userpass
+-		ret=" --auth-user-pass /var/run/openvpn.$name.userpass "
+-	fi
+-
+-	# Return overrides
+-	echo "$ret"
+-}
+-
+-openvpn_add_instance() {
+-	local name="$1"
+-	local dir="$2"
+-	local conf="$3"
+-	local security="$4"
+-	local up="$5"
+-	local down="$6"
+-
+-	procd_open_instance "$name"
+-	procd_set_param command "$PROG"	\
+-		--syslog "openvpn($name)" \
+-		--status "/var/run/openvpn.$name.status" \
+-		--cd "$dir" \
+-		--config "$conf" \
+-		--up "/usr/libexec/openvpn-hotplug up $name" \
+-		--down "/usr/libexec/openvpn-hotplug down $name" \
+-		${up:+--setenv user_up "$up"} \
+-		${down:+--setenv user_down "$down"} \
+-		--script-security "${security:-2}" \
+-		$(openvpn_get_dev "$name" "$conf") \
+-		$(openvpn_get_credentials "$name" "$conf")
+-	procd_set_param file "$dir/$conf"
+-	procd_set_param term_timeout 15
+-	procd_set_param respawn
+-	procd_append_param respawn 3600
+-	procd_append_param respawn 5
+-	procd_append_param respawn -1
+-	procd_close_instance
+-}
+-
+-start_instance() {
+-	local s="$1"
+-
+-	config_get config "$s" config
+-	config="${config:+$(readlink -f "$config")}"
+-
+-	section_enabled "$s" || {
+-		append UCI_DISABLED "$config" "$LIST_SEP"
+-		return 1
+-	}
+-
+-	local up down script_security
+-	config_get up "$s" up
+-	config_get down "$s" down
+-	config_get script_security "$s" script_security
+-
+-	[ ! -d "/var/run" ] && mkdir -p "/var/run"
+-
+-	if [ ! -z "$config" ]; then
+-		append UCI_STARTED "$config" "$LIST_SEP"
+-		[ -n "$up" ] || get_openvpn_option "$config" up up
+-		[ -n "$down" ] || get_openvpn_option "$config" down down
+-		openvpn_add_instance "$s" "${config%/*}" "$config" "$script_security" "$up" "$down"
+-		return
+-	fi
+-
+-	create_temp_file "/var/etc/openvpn-$s.conf"
+-
+-	append_bools "$s" $OPENVPN_BOOLS
+-	append_params "$s" $OPENVPN_PARAMS
+-	append_list "$s" $OPENVPN_LIST
+-
+-	openvpn_add_instance "$s" "/var/etc" "openvpn-$s.conf" "$script_security" "$up" "$down"
++. /lib/functions/network.sh
++
++_openvpn_init_complete() {
++    [ -f "/etc/easy-rsa/pki/ca.crt" -a \
++    -f "/etc/easy-rsa/pki/issued/pcwrt-openvpn-server.crt" -a \
++    -f "/etc/easy-rsa/pki/private/pcwrt-openvpn-server.key" -a \
++    -f "/etc/easy-rsa/pki/dh.pem" -a \
++    -f "/etc/easy-rsa/pki/tls-auth-key.pem" ] && return
+ }
+ 
+ start_service() {
+-	local instance="$1"
+-	local instance_found=0
++    _openvpn_init_complete || return
++    [ -f "/etc/openvpn/server.conf" ] || return
++    [ -d "/var/openvpn" ] || mkdir /var/openvpn
+ 
+-	config_cb() {
+-		local type="$1"
+-		local name="$2"
+-		if [ "$type" = "openvpn" ]; then
+-			if [ -n "$instance" -a "$instance" = "$name" ]; then
+-				instance_found=1
+-			fi
+-		fi
+-	}
++    local enabled
++    enabled=$(uci get openvpn.@server[0].enabled)
++    [ "$enabled" = "0" ] && return 1
+ 
+-	. /lib/functions/openvpn.sh
+-	. /usr/share/openvpn/openvpn.options
+-	config_load 'openvpn'
++    local lanip
++    network_get_ipaddr lanip lan
+ 
+-	if [ -n "$instance" ]; then
+-		[ "$instance_found" -gt 0 ] || return
+-		start_instance "$instance"
+-	else
+-		config_foreach start_instance 'openvpn'
++    local wanip
++    network_get_ipaddr wanip wan
++    [ -n "$wanip" ] || return 1
+ 
+-		local path name up down
+-		for path in /etc/openvpn/*.conf; do
+-			if [ -f "$path" ]; then
+-				name="${path##*/}"; name="${name%.conf}"
++    echo "local ${wanip}" >/tmp/openvpn-server.conf
++    cat /etc/openvpn/server.conf | sed s"/\"dhcp-option DNS .*\"/\"dhcp-option DNS $lanip\"/" >>/tmp/openvpn-server.conf
+ 
+-				# don't start configs again that are already started by uci
+-				if echo "$UCI_STARTED" | grep -qxF "$path"; then
+-					continue
+-
+-				# don't start configs which are set to disabled in uci
+-				elif echo "$UCI_DISABLED" | grep -qxF "$path"; then
+-					logger -t openvpn "$name.conf is disabled in /etc/config/openvpn"
+-					continue
+-				fi
++    procd_open_instance
++    procd_set_param respawn 3600 5 0
++    procd_set_param command $PROG /tmp/openvpn-server.conf
++    procd_close_instance
++}
+ 
+-				get_openvpn_option "$path" up up || up=""
+-				get_openvpn_option "$path" down down || down=""
+-				openvpn_add_instance "$name" "${path%/*}" "$path" "" "$up" "$down"
+-			fi
+-		done
+-	fi
++stop_service() {
++    procd_kill openvpn
++    local s status
++    . /usr/share/libubox/jshn.sh
++    for i in 1 2 3; do
++	s=$(ubus call network.interface.vpn status)
++	[ -z "$s" ] && break
++	json_init
++	json_load "$s"
++	json_get_var status up
++	[ "$status" -ne "1" ] && break
++	sleep 1
++    done
+ }
+ 
+-service_triggers() {
+-	procd_add_reload_trigger openvpn
++reload_service() {
++    restart
+ }
+diff --git a/net/openvpn/files/openvpn.pam b/net/openvpn/files/openvpn.pam
+new file mode 100644
+index 000000000..818ec123d
+--- /dev/null
++++ b/net/openvpn/files/openvpn.pam
+@@ -0,0 +1,7 @@
++#
++# /etc/pam.d/vpn-auth - authentication settings for openvpn
++#
++auth    required pam_vpnauth.so
++account required pam_vpnauth.so
++password required pam_vpnauth.so
++session required pam_vpnauth.so
+diff --git a/net/openvpn/files/openvpn.uci-default b/net/openvpn/files/openvpn.uci-default
+new file mode 100644
+index 000000000..7e044f78f
+--- /dev/null
++++ b/net/openvpn/files/openvpn.uci-default
+@@ -0,0 +1,45 @@
++#!/bin/sh
++uci -q batch <<-EOT
++    delete firewall.openvpnc
++    set firewall.openvpnc=include
++    set firewall.openvpnc.type=script
++    set firewall.openvpnc.path=/usr/share/openvpn/firewall.include
++    set firewall.openvpnc.family=any
++    set firewall.openvpnc.reload=1
++    commit firewall
++EOT
++
++has_vpnc=
++zones=$(uci show firewall | sed -n 's/=zone//p')
++for zone in $zones; do
++    if [ "$(uci get ${zone}.name)" = "vpnc" ]; then
++	has_vpnc=true
++    fi
++done
++
++if [ -z "$has_vpnc" ]; then
++    uci -q batch <<-EOT
++	add firewall zone
++	set firewall.@zone[-1].name=vpnc
++	add_list firewall.@zone[-1].network=vpnc
++	set firewall.@zone[-1].input=DROP
++	set firewall.@zone[-1].output=ACCEPT
++	set firewall.@zone[-1].forward=DROP
++	set firewall.@zone[-1].masq=1
++	set firewall.@zone[-1].mtu_fix=1
++	commit firewall
++EOT
++fi
++
++grep "config openvpn" /etc/config/ucitrack || {
++    uci add ucitrack openvpn
++    uci set ucitrack.@openvpn[0].init=openvpn
++}
++
++grep "config openvpnc" /etc/config/ucitrack || {
++    uci add ucitrack openvpnc
++    uci set ucitrack.@openvpnc[0].init=openvpnc
++}
++
++uci -q commit ucitrack
++exit 0
+diff --git a/net/openvpn/files/openvpnc.init b/net/openvpn/files/openvpnc.init
+new file mode 100644
+index 000000000..5f40dbf1e
+--- /dev/null
++++ b/net/openvpn/files/openvpnc.init
+@@ -0,0 +1,99 @@
++#!/bin/sh /etc/rc.common
++# Copyright (C) 2008-2013 OpenWrt.org
++# Copyright (C) 2008 Jo-Philipp Wich
++# This is free software, licensed under the GNU General Public License v2.
++# See /LICENSE for more information.
++
++START=90
++STOP=10
++
++USE_PROCD=1
++PROTO=
++PROG=/usr/sbin/openvpn
++
++start_service() {
++    local cli ovpn auth
++    mkdir -p /var/openvpn
++    cli=$(cat /var/openvpn/client 2>/dev/null | sed 's/[^0-9A-Za-z.]/-/g')
++    ovpn="/etc/openvpn/clients/${cli}.ovpn"
++    auth="/etc/openvpn/clients/${cli}.auth"
++    [ -f "$ovpn" ] && {
++	[ -f "$auth" ] && {
++	    head -1 $auth >/var/openvpn/client.auth
++	    tail -1 $auth | encryptor >>/var/openvpn/client.auth
++	}
++	procd_open_instance
++	procd_set_param respawn 3600 5 0
++	procd_set_param command $PROG $ovpn
++	procd_set_param stdout 1
++	procd_set_param stderr 1
++	procd_close_instance
++    }
++}
++
++stop_service() {
++    procd_kill openvpnc
++
++    local s status
++    . /usr/share/libubox/jshn.sh
++    for i in 1 2 3; do
++	s=$(ubus call network.interface.vpnc status)
++	[ -z "$s" ] && break
++	json_init
++	json_load "$s"
++	json_get_var status up
++	[ "$status" -ne "1" ] && break
++	sleep 1
++    done
++    rm /var/openvpn/client.auth
++}
++
++reload_service() {
++    restart
++}
++
++check_auto() {
++    local auto proto autostart username password
++    local s="$1"
++
++    config_get proto "$s" proto
++    config_get autostart "$s" autostart
++
++    [ "$proto" = "$PROTO" -a "$autostart" = "1" ] && {
++	[ -s '/etc/config/vpn' ] && {
++	    touch /var/run/vpn-ifaces
++	    uci -c /var/run batch <<-EOF
++	    delete vpn-ifaces.@vpn-iface[0]
++	    add vpn-ifaces vpn-iface
++	    set vpn-ifaces.@vpn-iface[0].iface=x1
++	    set vpn-ifaces.@vpn-iface[0].vpn=openvpn
++	    commit vpn-ifaces
++EOF
++	}
++
++	config_get auto "$s" name
++	echo $auto >/var/openvpn/client
++
++	config_get username "$s" username
++	config_get password "$s" password
++	password=$(echo -n $password | encryptor)
++	echo "$username\n$password" >/var/openvpn/client.auth
++
++	return 1
++    }
++}
++
++boot() {
++    local auto
++    mkdir -p /var/openvpn
++
++    if [ -s '/etc/config/vpn' ]; then
++	PROTO=openvpn
++	config_load vpn
++	config_foreach check_auto conn
++    else
++	auto=$(uci get openvpn.@client[0].autostart)
++	echo $auto >/var/openvpn/client
++    fi
++    start
++}
+diff --git a/net/openvpn/files/server.conf.template b/net/openvpn/files/server.conf.template
+new file mode 100644
+index 000000000..8991b921d
+--- /dev/null
++++ b/net/openvpn/files/server.conf.template
+@@ -0,0 +1,34 @@
++port <%=port%>
++proto udp
++dev tun0
++ca /etc/easy-rsa/pki/ca.crt
++cert /etc/easy-rsa/pki/issued/pcwrt-openvpn-server.crt
++key /etc/easy-rsa/pki/private/pcwrt-openvpn-server.key
++verify-client-cert none
++plugin /usr/lib/openvpn-plugin-auth-pam.so vpn-auth
++username-as-common-name
++dh /etc/easy-rsa/pki/dh.pem
++server <%=ipaddr%> <%=netmask%>
++ifconfig-pool-persist /var/openvpn/ipp.txt
++client-config-dir /etc/openvpn/ccd
++push "redirect-gateway def1 bypass-dhcp"
++push "dhcp-option DNS <%=dns%>"
++push "dhcp-option DOMAIN lan"
++keepalive 10 120
++tls-auth /etc/easy-rsa/pki/tls-auth-key.pem 0
++auth SHA256
++cipher AES-256-GCM
++ncp-ciphers AES-256-GCM:AES-256-CBC
++max-clients 20
++user nobody
++group nogroup
++persist-key
++persist-tun
++tun-mtu 1500
++tun-mtu-extra 32
++mssfix 1450
++fast-io
++status /var/openvpn/openvpn-status.log
++verb 3
++explicit-exit-notify 1
++<%=scramble%>
+diff --git a/net/openvpn/files/update-resolv-conf b/net/openvpn/files/update-resolv-conf
+new file mode 100755
+index 000000000..7de8457d0
+--- /dev/null
++++ b/net/openvpn/files/update-resolv-conf
+@@ -0,0 +1,55 @@
++#!/bin/sh
++#
++# Parses DHCP options from openvpn to update resolv.conf
++# To use set as 'up' and 'down' script in your openvpn *.conf:
++# up /etc/openvpn/update-resolv-conf
++# down /etc/openvpn/update-resolv-conf
++#
++# Used snippets of resolvconf script by Thomas Hood and Chris Hanson.
++# Licensed under the GNU GPL.  See /usr/share/common-licenses/GPL.
++#
++# Example envs set from openvpn:
++#
++#     foreign_option_1='dhcp-option DNS 193.43.27.132'
++#     foreign_option_2='dhcp-option DNS 193.43.27.133'
++#     foreign_option_3='dhcp-option DOMAIN be.bnc.ch'
++#
++
++[ "$script_type" ] || exit 0
++
++split_into_parts()
++{
++	part1="$1"
++	part2="$2"
++	part3="$3"
++}
++
++case "$script_type" in
++  up)
++	NMSRVRS=""
++	SRCHS=""
++	for optionvarname in $(set | grep foreign_option_ | awk -F= '{print $1}'); do
++		option=$(eval echo \$${optionvarname})
++		split_into_parts $option
++		if [ "$part1" = "dhcp-option" ] ; then
++			if [ "$part2" = "DNS" ] ; then
++				NMSRVRS="${NMSRVRS:+$NMSRVRS }$part3"
++			elif [ "$part2" = "DOMAIN" ] ; then
++				SRCHS="${SRCHS:+$SRCHS }$part3"
++			fi
++		fi
++	done
++	R=""
++	for NS in $NMSRVRS ; do
++	    R="${R}nameserver $NS
++"
++	done
++	[ "$SRCHS" ] && R="${R}search $SRCHS
++"
++	echo -n "$R" >/tmp/resolv.conf.openvpn
++	;;
++  down)
++	rm /tmp/resolv.conf.openvpn
++	;;
++esac
++
+diff --git a/net/openvpn/patches/899-add-SO_REUSEADDR-option-to-udp-socket.patch b/net/openvpn/patches/899-add-SO_REUSEADDR-option-to-udp-socket.patch
+new file mode 100644
+index 000000000..5476e8e0e
+--- /dev/null
++++ b/net/openvpn/patches/899-add-SO_REUSEADDR-option-to-udp-socket.patch
+@@ -0,0 +1,23 @@
++Index: openvpn-2.5.3/src/openvpn/socket.c
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/socket.c
+++++ openvpn-2.5.3/src/openvpn/socket.c
++@@ -1086,6 +1086,18 @@ create_socket_udp(struct addrinfo *addri
++     }
++ #endif /* if ENABLE_IP_PKTINFO */
++
+++#ifndef _WIN32 /* using SO_REUSEADDR on Windows will cause bind to succeed on port conflicts! */
+++    /* set SO_REUSEADDR on socket */
+++    {
+++	int on = 1;
+++	if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR,
+++                       (void *) &on, sizeof(on)) < 0)
+++	{
+++            msg(M_ERR, "UDP: Cannot setsockopt SO_REUSEADDR on UDP socket");
+++	}
+++    }
+++#endif
+++
++     /* set socket file descriptor to not pass across execs, so that
++      * scripts don't have access to it */
++     set_cloexec(sd);
+diff --git a/net/openvpn/patches/900-add-pam-auth-module-for-pcwrt-openvpn.patch b/net/openvpn/patches/900-add-pam-auth-module-for-pcwrt-openvpn.patch
+new file mode 100644
+index 000000000..864512d88
+--- /dev/null
++++ b/net/openvpn/patches/900-add-pam-auth-module-for-pcwrt-openvpn.patch
+@@ -0,0 +1,209 @@
++Index: openvpn-2.5.3/src/plugins/auth-pam/Makefile.am
++===================================================================
++--- openvpn-2.5.3.orig/src/plugins/auth-pam/Makefile.am
+++++ openvpn-2.5.3/src/plugins/auth-pam/Makefile.am
++@@ -13,7 +13,7 @@ AM_CFLAGS = \
++ 	$(OPTIONAL_CRYPTO_CFLAGS)
++
++ if ENABLE_PLUGIN_AUTH_PAM
++-plugin_LTLIBRARIES = openvpn-plugin-auth-pam.la
+++plugin_LTLIBRARIES = openvpn-plugin-auth-pam.la pam_vpnauth.la
++ dist_doc_DATA = README.auth-pam
++ endif
++
++@@ -27,3 +27,10 @@ openvpn_plugin_auth_pam_la_LIBADD = \
++ openvpn_plugin_auth_pam_la_LDFLAGS = $(AM_LDFLAGS) \
++ 	-export-symbols "$(srcdir)/auth-pam.exports" \
++ 	-module -shared -avoid-version -no-undefined
+++
+++pam_vpnauth_la_SOURCES = pam_vpnauth.c
+++pam_vpnauth_la_LIBADD = \
+++	$(PLUGIN_AUTH_PAM_LIBS) \
+++	$(OPTIONAL_CRYPTO_LIBS)
+++pam_vpnauth_la_LDFLAGS = $(AM_LDFLAGS) \
+++	-module -shared -avoid-version -no-undefined
++Index: openvpn-2.5.3/src/plugins/auth-pam/pam_vpnauth.c
++===================================================================
++--- /dev/null
+++++ openvpn-2.5.3/src/plugins/auth-pam/pam_vpnauth.c
++@@ -0,0 +1,180 @@
+++#include <sys/param.h>
+++
+++#include <pwd.h>
+++#include <stdlib.h>
+++#include <string.h>
+++#include <unistd.h>
+++
+++#include <security/pam_modules.h>
+++#include <security/pam_appl.h>
+++
+++#define _GNU_SOURCE
+++#include <stdio.h>
+++#include <crypt.h>
+++
+++static char password_prompt[] = "Password: ";
+++
+++#ifndef PAM_EXTERN
+++#define PAM_EXTERN
+++#endif
+++
+++static char* strip_quotes(char *s) {
+++    size_t n;
+++
+++    char *t = s;
+++    if (*t == '\'' || *t == '"') {
+++	t++;
+++	n = strlen(t);
+++	if (n > 0 && (t[n - 1] == '\'' || t[n - 1] == '"')) {
+++	    t[n - 1] = '\0';
+++	}
+++    }
+++    return t;
+++}
+++
+++static int authenticate_user(const char *username, const char *password) {
+++    int rc = 0;
+++    char type[50], name[50], value[1024], u[1024];
+++
+++    FILE *fp = fopen("/etc/config/openvpn", "r");
+++    if (fp == NULL) return 0;
+++
+++    char *line = 0, *v;
+++    size_t len = 0;
+++    ssize_t read;
+++    int i, r = -1, n = 0, user_section = 0, got_name = 0;
+++    while ((read = getline(&line, &len, fp)) != -1) {
+++	if ((n = sscanf(line, "%49s %49s %1023[^\n]", type, name, value)) > 1) {
+++	    if (strcmp("config", type) == 0) {
+++		if (got_name) break;
+++
+++		if (strcmp("user", name) == 0) {
+++		    user_section = 1;
+++		}
+++		else {
+++		    user_section = 0;
+++		}
+++	    }
+++
+++	    if (!user_section) continue;
+++
+++	    if (n > 2 && strcmp("option", type) == 0) {
+++		const char *p = strip_quotes(name);
+++		if (strcmp("name", p) == 0) {
+++		    if (strcmp(username, strip_quotes(value)) == 0) {
+++			got_name = 1;
+++		    }
+++		}
+++		else if (got_name && (strcmp("password", p) == 0)) {
+++		    v = strip_quotes(value);
+++		    rc = strcmp(crypt(password, v), v) == 0;
+++		    break;
+++		}
+++	    }
+++	}
+++    }
+++
+++    if (line) free(line);
+++    fclose(fp);
+++
+++    return rc;
+++}
+++
+++PAM_EXTERN int
+++pam_sm_authenticate(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++	struct pam_conv *conv;
+++	struct pam_message msg;
+++	const struct pam_message *msgp;
+++	struct pam_response *resp;
+++
+++	struct passwd *pwd;
+++	const char *user;
+++	char *password;
+++	int pam_err, retry;
+++
+++	/* identify user */
+++	if ((pam_err = pam_get_user(pamh, &user, NULL)) != PAM_SUCCESS) {
+++		return (pam_err);
+++	}
+++
+++	/* get password */
+++	pam_err = pam_get_item(pamh, PAM_CONV, (const void **)&conv);
+++	if (pam_err != PAM_SUCCESS) {
+++	    return (PAM_SYSTEM_ERR);
+++	}
+++
+++	msg.msg_style = PAM_PROMPT_ECHO_OFF;
+++	msg.msg = password_prompt;
+++	msgp = &msg;
+++
+++	for (retry = 0; retry < 3; ++retry) {
+++		resp = NULL;
+++		pam_err = (*conv->conv)(1, &msgp, &resp, conv->appdata_ptr);
+++		if (resp != NULL) {
+++			if (pam_err == PAM_SUCCESS) {
+++				password = resp->resp;
+++			}
+++			else {
+++				free(resp->resp);
+++			}
+++			free(resp);
+++		}
+++		if (pam_err == PAM_SUCCESS)
+++			break;
+++	}
+++
+++	if (pam_err == PAM_CONV_ERR) return (pam_err);
+++	if (pam_err != PAM_SUCCESS) return (PAM_AUTH_ERR);
+++
+++	/* authenticate user */
+++	pam_err = authenticate_user(user, password) ? PAM_SUCCESS : PAM_AUTH_ERR;
+++
+++	free(password);
+++	return (pam_err);
+++}
+++
+++PAM_EXTERN int
+++pam_sm_setcred(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++	return (PAM_SUCCESS);
+++}
+++
+++PAM_EXTERN int
+++pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++
+++	return (PAM_SUCCESS);
+++}
+++
+++PAM_EXTERN int
+++pam_sm_open_session(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++
+++	return (PAM_SUCCESS);
+++}
+++
+++PAM_EXTERN int
+++pam_sm_close_session(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++
+++	return (PAM_SUCCESS);
+++}
+++
+++PAM_EXTERN int
+++pam_sm_chauthtok(pam_handle_t *pamh, int flags,
+++	int argc, const char *argv[])
+++{
+++
+++	return (PAM_SERVICE_ERR);
+++}
+++
+++#ifdef PAM_MODULE_ENTRY
+++PAM_MODULE_ENTRY("pam_vpnauth");
+++#endif
+++
+diff --git a/net/openvpn/patches/910-tunnelblick-scramble.patch b/net/openvpn/patches/910-tunnelblick-scramble.patch
+new file mode 100644
+index 000000000..374dffaf0
+--- /dev/null
++++ b/net/openvpn/patches/910-tunnelblick-scramble.patch
+@@ -0,0 +1,305 @@
++Index: openvpn-2.5.3/src/openvpn/forward.c
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/forward.c
+++++ openvpn-2.5.3/src/openvpn/forward.c
++@@ -812,7 +812,10 @@ read_incoming_link(struct context *c)
++ 
++     status = link_socket_read(c->c2.link_socket,
++                               &c->c2.buf,
++-                              &c->c2.from);
+++                              &c->c2.from,
+++                              c->options.ce.xormethod,
+++                              c->options.ce.xormask,
+++                              c->options.ce.xormasklen);
++ 
++     if (socket_connection_reset(c->c2.link_socket, status))
++     {
++@@ -1623,7 +1626,10 @@ process_outgoing_link(struct context *c)
++                 /* Send packet */
++                 size = link_socket_write(c->c2.link_socket,
++                                          &c->c2.to_link,
++-                                         to_addr);
+++                                         to_addr,
+++                                         c->options.ce.xormethod,
+++                                         c->options.ce.xormask,
+++                                         c->options.ce.xormasklen);
++ 
++                 /* Undo effect of prepend */
++                 link_socket_write_post_size_adjust(&size, size_delta, &c->c2.to_link);
++Index: openvpn-2.5.3/src/openvpn/options.c
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/options.c
+++++ openvpn-2.5.3/src/openvpn/options.c
++@@ -820,6 +820,9 @@ init_options(struct options *o, const bo
++     o->resolve_retry_seconds = RESOLV_RETRY_INFINITE;
++     o->resolve_in_advance = false;
++     o->proto_force = -1;
+++    o->ce.xormethod = 0;
+++    o->ce.xormask = "\0";
+++    o->ce.xormasklen = 0;
++     o->occ = true;
++ #ifdef ENABLE_MANAGEMENT
++     o->management_log_history_cache = 250;
++@@ -972,6 +975,9 @@ setenv_connection_entry(struct env_set *
++     setenv_str_i(es, "local_port", e->local_port, i);
++     setenv_str_i(es, "remote", e->remote, i);
++     setenv_str_i(es, "remote_port", e->remote_port, i);
+++    setenv_int_i(es, "xormethod", e->xormethod, i);
+++    setenv_str_i(es, "xormask", e->xormask, i);
+++    setenv_int_i(es, "xormasklen", e->xormasklen, i);
++ 
++     if (e->http_proxy_options)
++     {
++@@ -1451,6 +1457,9 @@ show_connection_entry(const struct conne
++     SHOW_BOOL(bind_ipv6_only);
++     SHOW_INT(connect_retry_seconds);
++     SHOW_INT(connect_timeout);
+++    SHOW_INT(xormethod);
+++    SHOW_STR(xormask);
+++    SHOW_INT(xormasklen);
++ 
++     if (o->http_proxy_options)
++     {
++@@ -6272,6 +6281,46 @@ add_option(struct options *options,
++         }
++         options->proto_force = proto_force;
++     }
+++    else if (streq(p[0], "scramble") && p[1])
+++    {
+++        VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_CONNECTION);
+++        if (streq(p[1], "xormask") && p[2] && (!p[3]))
+++        {
+++            options->ce.xormethod = 1;
+++            options->ce.xormask = p[2];
+++            options->ce.xormasklen = strlen(options->ce.xormask);
+++        }
+++        else if (streq(p[1], "xorptrpos") && (!p[2]))
+++        {
+++            options->ce.xormethod = 2;
+++            options->ce.xormask = NULL;
+++            options->ce.xormasklen = 0;
+++        }
+++        else if (streq(p[1], "reverse") && (!p[2]))
+++        {
+++            options->ce.xormethod = 3;
+++            options->ce.xormask = NULL;
+++            options->ce.xormasklen = 0;
+++        }
+++        else if (streq(p[1], "obfuscate") && p[2] && (!p[3]))
+++        {
+++            options->ce.xormethod = 4;
+++            options->ce.xormask = p[2];
+++            options->ce.xormasklen = strlen(options->ce.xormask);
+++        }
+++        else if (!p[2])
+++        {
+++            msg(M_WARN, "WARNING: No recognized 'scramble' method specified; using 'scramble xormask \"%s\"'", p[1]);
+++            options->ce.xormethod = 1;
+++            options->ce.xormask = p[1];
+++            options->ce.xormasklen = strlen(options->ce.xormask);
+++        }
+++        else
+++        {
+++            msg(msglevel, "No recognized 'scramble' method specified or extra parameters for 'scramble'");
+++            goto err;
+++        }
+++    }
++     else if (streq(p[0], "http-proxy") && p[1] && !p[5])
++     {
++         struct http_proxy_options *ho;
++Index: openvpn-2.5.3/src/openvpn/options.h
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/options.h
+++++ openvpn-2.5.3/src/openvpn/options.h
++@@ -106,6 +106,9 @@ struct connection_entry
++     int connect_retry_seconds;
++     int connect_retry_seconds_max;
++     int connect_timeout;
+++    int xormethod;
+++    const char *xormask;
+++    int xormasklen;
++     struct http_proxy_options *http_proxy_options;
++     const char *socks_proxy_server;
++     const char *socks_proxy_port;
++Index: openvpn-2.5.3/src/openvpn/socket.c
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/socket.c
+++++ openvpn-2.5.3/src/openvpn/socket.c
++@@ -55,6 +55,53 @@ const int proto_overhead[] = { /* indexe
++     IPv6_TCP_HEADER_SIZE,
++ };
++ 
+++int buffer_mask (struct buffer *buf, const char *mask, int xormasklen) {
+++	int i;
+++	uint8_t *b;
+++	if (  xormasklen > 0  ) {
+++		for (i = 0, b = BPTR (buf); i < BLEN(buf); i++, b++) {
+++			*b = *b ^ mask[i % xormasklen];
+++		}
+++	}
+++	return BLEN (buf);
+++}
+++
+++int buffer_xorptrpos (struct buffer *buf) {
+++	int i;
+++	uint8_t *b;
+++	for (i = 0, b = BPTR (buf); i < BLEN(buf); i++, b++) {
+++		*b = *b ^ i+1;
+++	}
+++	return BLEN (buf);
+++}
+++
+++int buffer_reverse (struct buffer *buf) {
+++/* This function has been rewritten for Tunnelblick. The buffer_reverse function at
+++ * https://github.com/clayface/openvpn_xorpatch
+++ * makes a copy of the buffer and it writes to the byte **after** the
+++ * buffer contents, so if the buffer is full then it writes outside of the buffer.
+++ * This rewritten version does neither.
+++ *
+++ * For interoperability, this rewritten version preserves the behavior of the original
+++ * function: it does not modify the first character of the buffer. So it does not
+++ * actually reverse the contents of the buffer. Instead, it changes 'abcde' to 'aedcb'.
+++ * (Of course, the actual buffer contents are bytes, and not necessarily characters.)
+++ */
+++  int len = BLEN(buf);
+++  if (  len > 2  ) {                           /* Leave '', 'a', and 'ab' alone */
+++    int i;
+++    uint8_t *b_start = BPTR (buf) + 1;	        /* point to first byte to swap */
+++    uint8_t *b_end   = BPTR (buf) + (len - 1); /* point to last byte to swap */
+++    uint8_t tmp;
+++    for (i = 0; i < (len-1)/2; i++, b_start++, b_end--) {
+++      tmp = *b_start;
+++      *b_start = *b_end;
+++      *b_end = tmp;
+++    }
+++  }
+++  return len;
+++}
+++
++ /*
++  * Convert sockflags/getaddr_flags into getaddr_flags
++  */
++Index: openvpn-2.5.3/src/openvpn/socket.h
++===================================================================
++--- openvpn-2.5.3.orig/src/openvpn/socket.h
+++++ openvpn-2.5.3/src/openvpn/socket.h
++@@ -249,6 +249,10 @@ struct link_socket
++ #endif
++ };
++ 
+++int buffer_mask(struct buffer *buf, const char *xormask, int xormasklen);
+++int buffer_xorptrpos(struct buffer *buf);
+++int buffer_reverse(struct buffer *buf);
+++
++ /*
++  * Some Posix/Win32 differences.
++  */
++@@ -1049,30 +1053,62 @@ int link_socket_read_udp_posix(struct li
++ static inline int
++ link_socket_read(struct link_socket *sock,
++                  struct buffer *buf,
++-                 struct link_socket_actual *from)
+++                 struct link_socket_actual *from,
+++                 int xormethod,
+++                 const char *xormask,
+++                 int xormasklen)
++ {
+++    int res;
++     if (proto_is_udp(sock->info.proto)) /* unified UDPv4 and UDPv6 */
++     {
++-        int res;
++ 
++ #ifdef _WIN32
++         res = link_socket_read_udp_win32(sock, buf, from);
++ #else
++         res = link_socket_read_udp_posix(sock, buf, from);
++ #endif
++-        return res;
++     }
++     else if (proto_is_tcp(sock->info.proto)) /* unified TCPv4 and TCPv6 */
++     {
++         /* from address was returned by accept */
++         addr_copy_sa(&from->dest, &sock->info.lsa->actual.dest);
++-        return link_socket_read_tcp(sock, buf);
+++        res = link_socket_read_tcp(sock, buf);
++     }
++     else
++     {
++         ASSERT(0);
++         return -1; /* NOTREACHED */
++     }
+++
+++    switch (xormethod)
+++    {
+++        case 0:
+++            break;
+++
+++        case 1:
+++            buffer_mask(buf,xormask,xormasklen);
+++            break;
+++
+++        case 2:
+++            buffer_xorptrpos(buf);
+++            break;
+++
+++        case 3:
+++            buffer_reverse(buf);
+++            break;
+++
+++        case 4:
+++            buffer_mask(buf,xormask,xormasklen);
+++            buffer_xorptrpos(buf);
+++            buffer_reverse(buf);
+++            buffer_xorptrpos(buf);
+++            break;
+++
+++        default:
+++            ASSERT(0);
+++            return -1; /* NOTREACHED */
+++    }
+++    return res;
++ }
++ 
++ /*
++@@ -1163,8 +1199,40 @@ link_socket_write_udp(struct link_socket
++ static inline int
++ link_socket_write(struct link_socket *sock,
++                   struct buffer *buf,
++-                  struct link_socket_actual *to)
+++                  struct link_socket_actual *to,
+++                  int xormethod,
+++                  const char *xormask,
+++                  int xormasklen)
++ {
+++    switch (xormethod)
+++    {
+++        case 0:
+++            break;
+++
+++        case 1:
+++            buffer_mask(buf,xormask,xormasklen);
+++            break;
+++
+++        case 2:
+++            buffer_xorptrpos(buf);
+++            break;
+++
+++        case 3:
+++            buffer_reverse(buf);
+++            break;
+++
+++        case 4:
+++            buffer_xorptrpos(buf);
+++            buffer_reverse(buf);
+++            buffer_xorptrpos(buf);
+++            buffer_mask(buf,xormask,xormasklen);
+++            break;
+++
+++        default:
+++            ASSERT(0);
+++            return -1; /* NOTREACHED */
+++    }
+++
++     if (proto_is_udp(sock->info.proto)) /* unified UDPv4 and UDPv6 */
++     {
++         return link_socket_write_udp(sock, buf, to);
+-- 
+2.34.1
+
