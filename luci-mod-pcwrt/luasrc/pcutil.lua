@@ -522,7 +522,13 @@ function popen2(command)
     end
 end
 
-local function ip_in_network(ip, addr, mask)
+function ip_in_network(ip, addr, mask)
+    if type(ip) == 'string' then
+	ip = ip:split('.')
+    end
+
+    if #ip ~= 4 then return false end
+
     if type(addr) == 'string' and type(mask) == 'string' then
 	addr = addr:split('.')
 	mask = mask:split('.')
