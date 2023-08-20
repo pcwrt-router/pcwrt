@@ -1,0 +1,48 @@
+From bd7b5f21767d143e8a3819a014d760ad5ba6dd21 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Sun, 20 Aug 2023 17:11:20 -0500
+Subject: [PATCH] OpenVPN script fixes
+
+---
+ net/openvpn/Makefile            | 2 +-
+ net/openvpn/files/openvpnc.init | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/openvpn/Makefile b/net/openvpn/Makefile
+index 3e6f6d58e..98e8787b4 100644
+--- a/net/openvpn/Makefile
++++ b/net/openvpn/Makefile
+@@ -120,7 +120,7 @@ define Package/openvpn-$(BUILD_VARIANT)/install
+ 	$(INSTALL_BIN) \
+ 		$(PKG_INSTALL_DIR)/usr/lib/openvpn/plugins/pam_vpnauth.so \
+ 		$(1)/lib/security
+-		ln -s $(1)/lib/security/pam_vpnauth.so $(1)/usr/lib/security/pam_vpnauth.so
++		ln -s /lib/security/pam_vpnauth.so $(1)/usr/lib/security/pam_vpnauth.so
+ 
+ 	$(INSTALL_BIN) \
+ 		files/openvpn.init \
+diff --git a/net/openvpn/files/openvpnc.init b/net/openvpn/files/openvpnc.init
+index 5f40dbf1e..c0767eff4 100644
+--- a/net/openvpn/files/openvpnc.init
++++ b/net/openvpn/files/openvpnc.init
+@@ -20,7 +20,7 @@ start_service() {
+     [ -f "$ovpn" ] && {
+ 	[ -f "$auth" ] && {
+ 	    head -1 $auth >/var/openvpn/client.auth
+-	    tail -1 $auth | encryptor >>/var/openvpn/client.auth
++	    tail -1 $auth >>/var/openvpn/client.auth
+ 	}
+ 	procd_open_instance
+ 	procd_set_param respawn 3600 5 0
+@@ -76,7 +76,7 @@ EOF
+ 
+ 	config_get username "$s" username
+ 	config_get password "$s" password
+-	password=$(echo -n $password | encryptor)
++	password=$(echo -n $password)
+ 	echo "$username\n$password" >/var/openvpn/client.auth
+ 
+ 	return 1
+-- 
+2.34.1
+

@@ -714,7 +714,7 @@ function add_config()
 
     if needauth then
 	fp = io.open(tmp_dir .. '/' .. cfgname .. '.auth', 'w')
-	fp:write(v.cfguser .. '\n' .. scramble_pwd(v.cfgpass) .. '\n')
+	fp:write(v.cfguser .. '\n' .. v.cfgpass .. '\n')
 	fp:close()
     end
 
@@ -938,7 +938,7 @@ function get_config()
 	status = 'success',
 	data = {
 	    cfguser = s and s[1] or nil,
-	    cfgpass = s and unscramble_pwd(s[2]) or nil,
+	    cfgpass = s and s[2] or nil,
 	}
     })
 end
