@@ -1,0 +1,734 @@
+From 135f218724432996c59b91b3f8f6f1be3c1df282 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Sun, 20 Aug 2023 21:01:27 -0500
+Subject: [PATCH] Add WG support
+
+---
+ .../network/utils/wireguard-tools/Makefile    |  25 +-
+ .../wireguard-tools/files/firewall.include    |  90 +++++
+ .../utils/wireguard-tools/files/linux.ash     | 354 ++++++++++++++++++
+ .../utils/wireguard-tools/files/wg.config     |   5 +
+ .../utils/wireguard-tools/files/wg.init       | 148 ++++++++
+ .../files/wireguard.uci-default               |  40 ++
+ 6 files changed, 655 insertions(+), 7 deletions(-)
+ create mode 100644 package/network/utils/wireguard-tools/files/firewall.include
+ create mode 100755 package/network/utils/wireguard-tools/files/linux.ash
+ create mode 100644 package/network/utils/wireguard-tools/files/wg.config
+ create mode 100644 package/network/utils/wireguard-tools/files/wg.init
+ create mode 100644 package/network/utils/wireguard-tools/files/wireguard.uci-default
+
+diff --git a/package/network/utils/wireguard-tools/Makefile b/package/network/utils/wireguard-tools/Makefile
+index 5f8da147c1..4c054fdd2b 100644
+--- a/package/network/utils/wireguard-tools/Makefile
++++ b/package/network/utils/wireguard-tools/Makefile
+@@ -36,10 +36,10 @@ define Package/wireguard-tools
+   URL:=https://www.wireguard.com
+   MAINTAINER:=Jason A. Donenfeld <Jason@zx2c4.com>
+   TITLE:=WireGuard userspace control program (wg)
+-  DEPENDS:= \
+-	  +@BUSYBOX_CONFIG_IP \
+-	  +@BUSYBOX_CONFIG_FEATURE_IP_LINK \
+-	  +kmod-wireguard
++  DEPENDS:=\
++	+@BUSYBOX_CONFIG_IP \
++	+@BUSYBOX_CONFIG_FEATURE_IP_LINK \
++	+kmod-wireguard
+ endef
+ 
+ define Package/wireguard-tools/description
+@@ -55,11 +55,22 @@ define Package/wireguard-tools/description
+ endef
+ 
+ define Package/wireguard-tools/install
+-	$(INSTALL_DIR) $(1)/usr/bin/
++	$(INSTALL_DIR) $(1)/usr/bin/ \
++		$(1)/etc/init.d \
++		$(1)/etc/config \
++		$(1)/etc/wireguard \
++		$(1)/usr/share/wireguard \
++		$(1)/etc/uci-defaults
++
+ 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/wg $(1)/usr/bin/
+ 	$(INSTALL_BIN) ./files/wireguard_watchdog $(1)/usr/bin/
+-	$(INSTALL_DIR) $(1)/lib/netifd/proto/
+-	$(INSTALL_BIN) ./files/wireguard.sh $(1)/lib/netifd/proto/
++	$(INSTALL_BIN) ./files/linux.ash $(1)/usr/bin/wg-quick
++	$(INSTALL_BIN) ./files/wireguard.uci-default $(1)/etc/uci-defaults/99-wireguard
++	$(INSTALL_DATA) ./files/wg.config $(1)/etc/config/wg
++	$(INSTALL_BIN) ./files/wg.init $(1)/etc/init.d/wg
++	$(INSTALL_DATA) ./files/firewall.include $(1)/usr/share/wireguard/firewall.include
++	ln -s /var/wireguard/wg0.conf $(1)/etc/wireguard/wg0.conf
++	ln -s /var/wireguard/wg1.conf $(1)/etc/wireguard/wg1.conf
+ endef
+ 
+ $(eval $(call BuildPackage,wireguard-tools))
+diff --git a/package/network/utils/wireguard-tools/files/firewall.include b/package/network/utils/wireguard-tools/files/firewall.include
+new file mode 100644
+index 0000000000..8dce1e791d
+--- /dev/null
++++ b/package/network/utils/wireguard-tools/files/firewall.include
+@@ -0,0 +1,90 @@
++#!/bin/sh
++. /lib/functions/system.sh
++. /lib/functions/network.sh
++
++zones=`uci show firewall | sed -n s'/=zone//gp'`
++for zone in $zones; do
++    name=`uci -q get ${zone}.name`
++    if [ "$name" != "wan" -a "$name" != "vpnc" -a "$name" != "wgc" ]; then
++	nets="$nets $name"
++    fi
++done
++
++ifaces=$(uci show vpn-ifaces | sed -n s'/=vpn-iface//gp')
++for iface in $ifaces; do
++    name=$(uci -q get ${iface}.vpn)
++    if [ "$name" = "wg" ]; then
++	localifs="$localifs $(uci -q get ${iface}.iface)"
++    fi
++done
++localifs=$(echo $localifs)
++
++iptables -S zone_wan_input | grep '!fw3: wg' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -S zone_wgc_input >/dev/null 2>&1 && {
++    iptables -S zone_wgc_input | grep '!fw3: wg' | while read RULE; do
++	eval iptables ${RULE/-A/-D}
++    done
++}
++
++iptables -S zone_vpnc_input >/dev/null 2>&1 && {
++    iptables -S zone_vpnc_input | grep '!fw3: wg' | while read RULE; do
++	eval iptables ${RULE/-A/-D}
++    done
++}
++
++if [ "$(uci get wg.@server[0].enabled)" = "1" ]; then
++    port=$(uci get wg.@server[0].port)
++    [ "$port" -gt 0 ] && {
++	iptables -I zone_wan_input 2 -p udp -m udp --dport ${port} -m comment --comment '!fw3: wg' -j ACCEPT 
++    }
++fi
++
++iptables -t mangle -F wg_prerouting_rule >/dev/null 2>&1 || iptables -t mangle -N wg_prerouting_rule
++iptables -t mangle -C PREROUTING -j wg_prerouting_rule 2>/dev/null || {
++    iptables -t mangle -I PREROUTING -j wg_prerouting_rule
++}
++
++for net in $nets; do
++    network_get_device iface $net
++    case "$localifs" in 
++	*${net}*)
++	    iptables -t mangle -A wg_prerouting_rule -i $iface -j MARK --set-mark 0x40/0x40
++	    iptables -S forwarding_${net}_rule | grep '!fw3: wg' | while read RULE; do
++		eval iptables ${RULE/-A/-D}
++	    done
++	    ;;
++	*)
++	    ;;
++    esac
++done
++
++iptables -S forwarding_rule | grep '!fw3: wg' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++ips=$(network_get_vpnuser_ip wg)
++ifconfig wg1 >/dev/null 2>&1 && {
++    for ip in $ips; do
++	iptables -t mangle -A wg_prerouting_rule -s $ip -j MARK --set-mark 0x40/0x40
++	iptables -A forwarding_rule -s $ip -m comment --comment '!fw3: wg' -j zone_wgc_dest_ACCEPT
++    done
++}
++
++ip rule show | grep "from all fwmark 0x40 lookup 51820" >/dev/null 2>&1 || ip rule add fwmark 0x40 table 51820 priority 223
++ip rule show | grep "from all fwmark 0x40 lookup 256 suppress_prefixlength 0" >/dev/null 2>&1 || ip rule add fwmark 0x40 table 256 suppress_prefixlength 0 priority 222
++
++vpnrule=$(ip rule show | sed -n 's/^221:\s*//p')
++[ -n "$vpnrule" ] && ip rule del $vpnrule
++
++vpnip=$(ifconfig wg1 2>/dev/null | sed -r -n 's/.*inet addr:[[:space:]]*([^ ]*).*/\1/p')
++[ -n "$vpnip" ] && {
++    ip rule add from $vpnip lookup 51820 priority 221
++} || {
++    ip route flush table 51820
++    ip route add table 51820 default via 127.0.0.1
++}
++
++exit 0
+diff --git a/package/network/utils/wireguard-tools/files/linux.ash b/package/network/utils/wireguard-tools/files/linux.ash
+new file mode 100755
+index 0000000000..649abbfe78
+--- /dev/null
++++ b/package/network/utils/wireguard-tools/files/linux.ash
+@@ -0,0 +1,354 @@
++#!/bin/sh
++# SPDX-License-Identifier: GPL-2.0
++#
++# Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
++#
++WG_CONFIG=""
++INTERFACE=""
++ADDRESSES=""
++MTU=""
++DNS=""
++TABLE=""
++PRE_UP=""
++POST_UP=""
++PRE_DOWN=""
++POST_DOWN=""
++SAVE_CONFIG=0
++CONFIG_FILE=""
++PROGRAM="${0##*/}"
++main="256"
++
++cmd() {
++	echo "[#] $*" >&2
++	"$@"
++}
++
++die() {
++	echo "$PROGRAM: $*" >&2
++	exit 1
++}
++
++parse_options() {
++	local interface_section=0 line key value stripped
++	INTERFACE="$1"
++	CONFIG_FILE="/etc/wireguard/$INTERFACE.conf"
++	[ -e $CONFIG_FILE ] || die "\`$CONFIG_FILE' does not exist"
++	echo $CONFIG_FILE | grep -E '(^|/)([a-zA-Z0-9_=+.-]{1,15})\.conf$' >/dev/null 2>&1 || die "The config file must be a valid interface name, followed by .conf"
++	CONFIG_FILE="$(readlink -f "$CONFIG_FILE")"
++	while read -r line; do
++		stripped=$(echo ${line})
++		key="${stripped%%=*}"; key=$(echo ${key});
++		value="${stripped#*=}"; value=$(echo ${value});
++		case "$key" in
++		    "[Interface]")
++			interface_section=1
++			;;
++		    "["*)
++			interface_section=0
++			;;
++		esac
++		[ $interface_section -eq 1 ] && {
++		case "$key" in
++		    Address)
++			ADDRESSES="$ADDRESSES "$(echo $value | sed 's/,/ /g'); continue ;;
++		    MTU)
++			MTU="$value"; continue ;;
++		    DNS)
++			DNS="$DNS "$(echo $value | sed 's/,/ /'); continue ;;
++		    Table)
++			TABLE="$value"; continue ;;
++		    PreUp)
++			PRE_UP=${PRE_UP}"$value"$'\n'; continue ;;
++		    PreDown)
++			PRE_DOWN=${PRE_DOWN}"$value"$'\n'; continue ;;
++		    PostUp)
++			POST_UP=${POST_UP}"$value"$'\n'; continue ;;
++		    PostDown) POST_DOWN=${POST_DOWN}"$value"$'\n'; continue ;;
++		    SaveConfig)	read_bool SAVE_CONFIG "$value"; continue ;;
++		esac
++		}
++		WG_CONFIG=${WG_CONFIG}"$line"$'\n'
++	done < "$CONFIG_FILE"
++}
++
++read_bool() {
++	case "$2" in
++	true) eval $1=1 ;;
++	false) eval $1=0 ;;
++	*) die "\`$2' is neither true nor false"
++	esac
++}
++
++add_if() {
++	local ret
++	if ! cmd ip link add "$INTERFACE" type wireguard; then
++		ret=$?
++		[ -e /sys/module/wireguard ] || ! command -v "${WG_QUICK_USERSPACE_IMPLEMENTATION:-wireguard-go}" >/dev/null && exit $ret
++		echo "[!] Missing WireGuard kernel module. Falling back to slow userspace implementation."
++		cmd "${WG_QUICK_USERSPACE_IMPLEMENTATION:-wireguard-go}" "$INTERFACE"
++	fi
++}
++
++del_if() {
++	[ $HAVE_SET_DNS -eq 0 ] || unset_dns
++	cmd ip link delete dev "$INTERFACE"
++	cmd ip route add default via 127.0.0.1 table 51820
++}
++
++add_addr() {
++	cmd ip address add "$1" dev "$INTERFACE"
++}
++
++set_mtu_up() {
++	local mtu=0 endpoint output
++	if [[ -n "$MTU" ]]; then
++		cmd ip link set mtu "$MTU" up dev "$INTERFACE"
++		return
++	fi
++	wg show "$INTERFACE" endpoints | while read _ endpoint; do
++		echo $endpoint | grep -E '^\[?[a-z0-9:.]+\]?:[0-9]+$' >/dev/null 2>&1 || continue
++		endpoint=$(echo $endpoint | sed 's/:[0-9]*$//')
++		output=$(ip route get "${endpoint}" || echo true)
++		output=$(echo $output | sed -n -r 's/.* mtu ([[:digit:]]*) .*/\1/p')
++		[ -z "$output" ] && {
++		    output=$(echo $output | sed -r -n 's/.*dev ([^ ]*).*/\1/p')
++		    [ -n "$output" ] && {
++			output=$(ip link show dev $output | sed -n -r 's/.* mtu ([[:digit:]]*) .*/\1/p')
++			if [ -n "$output" -a $output -gt $mtu ]; then
++			    mtu=$output
++			fi
++		    }
++		}
++	done
++	if [[ $mtu -eq 0 ]]; then
++		output=$(ip route show default || echo true)
++		output=$(echo $output | sed -n -r 's/.* mtu ([[:digit:]]*) .*/\1/p')
++		[ -z "$output" ] && {
++		    output=$(echo $output | sed -r -n 's/.*dev ([^ ]*).*/\1/p')
++		    [ -n "$output" ] && {
++			output=$(ip link show dev $output | sed -n -r 's/.* mtu ([[:digit:]]*) .*/\1/p')
++			if [ -n "$output" -a $output -gt $mtu ]; then
++			    mtu=$output
++			fi
++		    }
++		}
++	fi
++	[[ $mtu -gt 0 ]] || mtu=1500
++	cmd ip link set mtu $(( mtu - 80 )) up dev "$INTERFACE"
++}
++
++resolvconf_iface_prefix() {
++	[[ -f /etc/resolvconf/interface-order ]] || return 0
++	local iface
++	while read -r iface; do
++	    echo $iface | grep -E '^[A-Za-z0-9-]+\*$' >/dev/null 2>&1 || continue
++	    echo $iface | sed 's/\*$//' && return 0
++	done < /etc/resolvconf/interface-order
++}
++
++HAVE_SET_DNS=0
++set_dns() {
++    [ -z "$DNS" ] && return 0
++
++    for dns in $DNS; do
++	echo "nameserver $dns"
++    done >/tmp/resolv.conf.wg
++    HAVE_SET_DNS=1
++}
++
++unset_dns() {
++    rm -f /tmp/resolv.conf.wg
++}
++
++add_route() {
++	[[ "$TABLE" != "off" ]] || return 0
++
++	if [[ -n "$TABLE" -a "$TABLE" != "auto" ]]; then
++		cmd ip route add "$1" dev "$INTERFACE" table "$TABLE"
++	elif echo $1 | grep -E '/0$' >/dev/null 2>&1; then
++		add_default "$1"
++	else
++		ip route get "$1" | grep -E "dev $INTERFACE " >/dev/null 2>&1 || cmd ip route add "$1" dev "$INTERFACE"
++	fi
++}
++
++get_fwmark() {
++	local fwmark
++	fwmark="$(wg show "$INTERFACE" fwmark)" || return 1
++	[ -n "$fwmark" -a "$fwmark" != "off" ] || return 1
++	eval "$1"="$fwmark"
++	return 0
++}
++
++add_default() {
++	local proto=-4
++	echo $1 | grep ':' >/dev/null 2>&1 && proto=-6
++	cmd ip $proto route del "$1" table 51820
++	cmd ip $proto route add "$1" dev "$INTERFACE" table 51820
++	return 0
++}
++
++set_config() {
++	echo "$WG_CONFIG" >/tmp/wg_config.tmp
++	cmd wg setconf "$INTERFACE" /tmp/wg_config.tmp
++	rm /tmp/wg_config.tmp
++}
++
++save_config() {
++	local old_umask new_config current_config address addresses cmd line
++	local interface_section=0
++	addresses=$(ip -all -brief address show dev "$INTERFACE") | sed -n 's/^$INTERFACE\ \ *[A-Z]*\ *//p'
++	new_config=$'[Interface]\n'
++	for address in $addresses; do
++		new_config=${new_config}"Address = $address"$'\n'
++	done
++	while read -r address; do
++		address=$(echo $address | sed -n 's/^nameserver\ //p')
++		new_config=${new_config}"DNS = ${address}"$'\n'
++	done < /tmp/resolv.conf.wg
++	[ -n "$MTU" ] && {
++	    new_config=${new_config}"MTU = $(ip link show dev "$INTERFACE" | sed -n -r 's/.*mtu\ \ *([0-9]*) .*/\1/p')"$'\n'
++	}
++	[ -n "$TABLE" ] && new_config=${new_config}"Table = $TABLE"$'\n'
++	[ $SAVE_CONFIG -eq 0 ] || new_config=${new_config}$'SaveConfig = true\n'
++	echo "${PRE_UP}" | while read cmd; do
++		[ -n "$cmd" ] && new_config=${new_config}"PreUp = $cmd"$'\n'
++	done
++	echo "${POST_UP}" | while read cmd; do
++		[ -n "$cmd" ] && new_config=${new_config}"PostUp = $cmd"$'\n'
++	done
++	echo "${PRE_DOWN}" | while read cmd; do
++		[ -n "$cmd" ] && new_config=${new_config}"PreDown = $cmd"$'\n'
++	done
++	echo "${POST_DOWN}" | while read cmd; do
++		[ -n "$cmd" ] && new_config=${new_config}"PostDown = $cmd"$'\n'
++	done
++	old_umask="$(umask)"
++	umask 077
++	trap 'rm -f "$CONFIG_FILE.tmp"; exit' INT TERM EXIT
++	echo "${new_config}" > "$CONFIG_FILE.tmp" || die "Could not write configuration file"
++
++	wg showconf $INTERFACE | while read line; do
++	    line=$(echo $line)
++	    case "$line" in
++	    "[Interface]")
++		interface_section=1
++		;;
++	    "["*)
++		interface_section=0
++		;;
++	    esac
++
++	    [ $interface_section -eq 0 ] && {
++		current_config=${current_config}${line}$'\n'
++	    }
++	done
++
++	echo "${current_config}" >> "$CONFIG_FILE.tmp" || die "Could not write configuration file"
++	sync "$CONFIG_FILE.tmp"
++	mv "$CONFIG_FILE.tmp" "$CONFIG_FILE" || die "Could not move configuration file"
++	trap - INT TERM EXIT
++	umask "$old_umask"
++}
++
++execute_hooks() {
++	local hook
++	echo "$@" | while read hook; do
++	    [ -n "$hook" ] && {
++		hook="${hook//%i/$INTERFACE}"
++		echo "[#] $hook" >&2
++		(eval "$hook")
++	    }
++	done
++}
++
++cmd_usage() {
++	cat >&2 <<-_EOF
++	Usage: $PROGRAM [ up | down | save ] [ CONFIG_FILE | INTERFACE ]
++
++	  CONFIG_FILE is a configuration file, whose filename is the interface name
++	  followed by \`.conf'. Otherwise, INTERFACE is an interface name, with
++	  configuration found at /etc/wireguard/INTERFACE.conf. It is to be readable
++	  by wg(8)'s \`setconf' sub-command, with the exception of the following additions
++	  to the [Interface] section, which are handled by $PROGRAM:
++
++	  - Address: may be specified one or more times and contains one or more
++	    IP addresses (with an optional CIDR mask) to be set for the interface.
++	  - DNS: an optional DNS server to use while the device is up.
++	  - MTU: an optional MTU for the interface; if unspecified, auto-calculated.
++	  - Table: an optional routing table to which routes will be added; if
++	    unspecified or \`auto', the default table is used. If \`off', no routes
++	    are added.
++	  - PreUp, PostUp, PreDown, PostDown: script snippets which will be executed
++	    by bash(1) at the corresponding phases of the link, most commonly used
++	    to configure DNS. The string \`%i' is expanded to INTERFACE.
++	  - SaveConfig: if set to \`true', the configuration is saved from the current
++	    state of the interface upon shutdown.
++
++	See wg-quick(8) for more info and examples.
++	_EOF
++}
++
++cmd_up() {
++	local i
++	[[ -z $(ip link show dev "$INTERFACE" 2>/dev/null) ]] || die "\`$INTERFACE' already exists"
++	trap 'del_if; exit' INT TERM EXIT
++	execute_hooks "${PRE_UP}"
++	add_if
++	set_config
++	for i in ${ADDRESSES}; do
++		add_addr "$i"
++	done
++	set_mtu_up
++	set_dns
++	for i in $(wg show "$INTERFACE" allowed-ips | while read _ i; do for i in $i; do echo $i | grep -E '^[0-9a-z:.]+/[0-9]+$' >/dev/null 2>&1 && echo "$i"; done; done | sort -nr -k 2 -t /); do
++		add_route "$i"
++	done
++	execute_hooks "${POST_UP}"
++	trap - INT TERM EXIT
++}
++
++cmd_down() {
++	local interface
++	for interface in $(wg show interfaces); do
++	    [ "$interface" = "$INTERFACE" ] && {
++		execute_hooks "${PRE_DOWN}"
++		[[ $SAVE_CONFIG -eq 0 ]] || save_config
++		del_if
++		unset_dns
++		execute_hooks "${POST_DOWN}"
++		return 0
++	    }
++	done
++	die "\`$INTERFACE' is not a WireGuard interface"
++}
++
++cmd_save() {
++	local interface
++	for interface in $(wg show interfaces); do
++	    [ "$interface" = "$INTERFACE" ] && {
++		save_config
++		return 0
++	    }
++	done
++	die "\`$INTERFACE' is not a WireGuard interface"
++}
++
++# ~~ function override insertion point ~~
++if [ $# -eq 1 -a \( "$1" = "--help" -o "$1" = "-h" -o "$1" = "help" \) ]; then
++	cmd_usage
++elif [ $# -eq 2 -a "$1" = "up" ]; then
++	parse_options "$2"
++	cmd_up
++elif [ $# -eq 2 -a "$1" = "down" ]; then
++	parse_options "$2"
++	cmd_down
++elif [ $# -eq 2 && "$1" = "save" ]; then
++	parse_options "$2"
++	cmd_save
++else
++	cmd_usage
++	exit 1
++fi
++
++exit 0
+diff --git a/package/network/utils/wireguard-tools/files/wg.config b/package/network/utils/wireguard-tools/files/wg.config
+new file mode 100644
+index 0000000000..22e62b9cc0
+--- /dev/null
++++ b/package/network/utils/wireguard-tools/files/wg.config
+@@ -0,0 +1,5 @@
++config server
++    option enabled '0'
++    option extaddr ''
++    option ipaddr '10.113.0.0'
++    option netmask '255.255.255.0'
+diff --git a/package/network/utils/wireguard-tools/files/wg.init b/package/network/utils/wireguard-tools/files/wg.init
+new file mode 100644
+index 0000000000..1e64868943
+--- /dev/null
++++ b/package/network/utils/wireguard-tools/files/wg.init
+@@ -0,0 +1,148 @@
++#!/bin/sh /etc/rc.common
++START=90
++STOP=10
++
++USE_PROCD=1
++WG=wg
++PROTO=
++
++. /lib/functions/network.sh
++
++add_peer() {
++    local s="$1"
++    local publickey ip 
++
++    config_get publickey $s publickey
++    config_get ip $s ip
++
++    [ -n "${publickey}" -a -n "${ip}" ] && {
++	cat >> /var/wireguard/wg0.conf << EOF
++[Peer]
++PublicKey = ${publickey}
++AllowedIPs = ${ip}/32
++
++EOF
++    }
++}
++
++check_auto() {
++    local auto proto autostart
++    local s="$1"
++
++    config_get proto "$s" proto
++    config_get autostart "$s" autostart
++
++    [ "$proto" = "$PROTO" -a "$autostart" = "1" ] && {
++	config_get auto "$s" name
++	echo $auto >/tmp/wg_client
++	return 1
++    }
++}
++
++start_conn() {
++    local s="$1"
++    local auto="$2"
++    local name ip port privatekey presharedkey proto
++    local serverpubkey serverhost serverport autostart dns
++
++    config_get name $s name
++    config_get proto $s proto
++
++    [ "$auto" = "$name" -a "$proto" = "$PROTO" ] && {
++	[ -s '/etc/config/vpn' ] && {
++	    touch /var/run/vpn-ifaces
++	    uci -c /var/run batch <<-EOF
++	    delete vpn-ifaces.@vpn-iface[0]
++	    add vpn-ifaces vpn-iface
++	    set vpn-ifaces.@vpn-iface[0].iface=x1
++	    set vpn-ifaces.@vpn-iface[0].vpn=wg
++	    commit vpn-ifaces
++EOF
++	}
++
++	config_get ip $s ip
++	[ -z "$ip" ] && config_get ip $s cliip
++	config_get port $s port
++	[ -z "$port" ] && port=0
++	config_get privatekey $s privatekey
++	[ -z "$privatekey" ] && config_get privatekey $s cliprivkey
++	config_get dns $s dns
++	[ -z "$dns" ] && config_get dns $s clidns
++	config_get presharedkey $s presharedkey
++	config_get serverpubkey $s serverpubkey
++	[ -z "$serverpubkey" ] && config_get serverpubkey $s svrpubkey
++	config_get serverhost $s serverhost
++	[ -z "$serverhost" ] && config_get serverhost $s svrhost
++	config_get serverport $s serverport
++	[ -z "$serverport" ] && config_get serverport $s svrport
++
++	while [ "$port" -lt 1024 ]; do
++	    port=`dd if=/dev/urandom ibs=2 count=1 2>/dev/null | od -d | awk 'FNR == 1 {print $2}'`
++	    port=${port##0}
++	done
++
++	cat > /var/wireguard/wg1.conf << EOF
++[Interface]
++Address = ${ip}/32
++ListenPort = ${port}
++PrivateKey = $privatekey
++DNS = ${dns}
++
++[Peer]
++PublicKey = ${serverpubkey}
++Endpoint = ${serverhost}:${serverport}
++AllowedIPs = 0.0.0.0/0
++PersistentKeepalive = 25
++EOF
++	[ -n "$presharedkey" ] && echo "PresharedKey = $presharedkey" >> /var/wireguard/wg1.conf
++	wg-quick up wg1 >/dev/null 2>&1
++	return 1
++    }
++}
++
++start_service() {
++    local auto netmask
++
++    mkdir -p /var/wireguard
++    [ -s '/etc/config/vpn' ] && {
++	WG=vpn
++	PROTO=wg
++    }
++    config_load $WG
++
++    [ "$(uci -q get $WG.@server[0].enabled)" = "1" ] && {
++	netmask=$(uci get $WG.@server[0].netmask)
++	privatekey=$(uci get $WG.@server[0].privatekey)
++	cat > /var/wireguard/wg0.conf << EOF
++[Interface]
++Address = $(uci get $WG.@server[0].ipaddr)/$(network_maskbits $netmask)
++PrivateKey = $privatekey
++ListenPort = $(uci get $WG.@server[0].port)
++
++EOF
++	config_foreach add_peer peer
++	wg-quick up wg0 >/dev/null 2>&1
++    }
++
++    auto=$(cat /tmp/wg_client 2>/dev/null)
++    [ -n "$auto" ] && config_foreach start_conn conn "$auto"
++}
++
++stop_service() {
++    wg-quick down wg0 >/dev/null 2>&1
++    wg-quick down wg1 >/dev/null 2>&1
++}
++
++reload_service() {
++    restart
++}
++
++boot() {
++    [ -s '/etc/config/vpn' ] && {
++	WG=vpn
++	PROTO=wg
++    }
++    config_load $WG
++    config_foreach check_auto conn
++    start
++}
+diff --git a/package/network/utils/wireguard-tools/files/wireguard.uci-default b/package/network/utils/wireguard-tools/files/wireguard.uci-default
+new file mode 100644
+index 0000000000..39b53c2eb1
+--- /dev/null
++++ b/package/network/utils/wireguard-tools/files/wireguard.uci-default
+@@ -0,0 +1,40 @@
++#!/bin/sh
++uci -q batch <<-EOT
++    delete firewall.wg
++    set firewall.wg=include
++    set firewall.wg.type=script
++    set firewall.wg.path=/usr/share/wireguard/firewall.include
++    set firewall.wg.family=any
++    set firewall.wg.reload=1
++    commit firewall
++EOT
++
++has_wgc=
++zones=$(uci show firewall | sed -n 's/=zone//p')
++for zone in $zones; do
++    if [ "$(uci get ${zone}.name)" = "wgc" ]; then
++	has_wgc=true
++    fi
++done
++
++if [ -z "$has_wgc" ]; then
++    uci -q batch <<-EOT
++	add firewall zone
++	set firewall.@zone[-1].name=wgc
++	add_list firewall.@zone[-1].network=wgc
++	set firewall.@zone[-1].input=DROP
++	set firewall.@zone[-1].output=ACCEPT
++	set firewall.@zone[-1].forward=DROP
++	set firewall.@zone[-1].masq=1
++	set firewall.@zone[-1].mtu_fix=1
++	commit firewall
++EOT
++fi
++
++grep "config wg" /etc/config/ucitrack || {
++    uci add ucitrack wg
++    uci set ucitrack.@wg[0].init=wg
++    uci -q commit ucitrack
++}
++
++exit 0
+-- 
+2.34.1
+
