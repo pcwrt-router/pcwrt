@@ -33,7 +33,7 @@ diff --git a/package/base-files/files/lib/functions/network.sh b/package/base-fi
 index 055f18c11e..dd2e1c7611 100644
 --- a/package/base-files/files/lib/functions/network.sh
 +++ b/package/base-files/files/lib/functions/network.sh
-@@ -309,3 +309,92 @@ network_ready_device()
+@@ -309,3 +309,112 @@ network_ready_device()
  
  # flush the internal value cache to force re-reading values from ubus
  network_flush_cache() { unset __NETWORK_CACHE; }
@@ -125,6 +125,26 @@ index 055f18c11e..dd2e1c7611 100644
 +    done
 +
 +    echo $ips
++}
++
++network_ip2int()
++{
++    local a b c d
++    IFS=. read a b c d << EOF
++$1
++EOF
++    echo $(((((((a << 8) | b) << 8) | c) << 8) | d))
++}
++
++network_maskbits() {
++    local mask=$(network_ip2int $1); shift
++    local bits=0
++    local bit=$((0x80000000))
++    while [ $mask -ge $bit ]; do
++	mask=$((0xffffffff & (mask << 1)))
++	bits=$((bits + 1))
++    done
++    echo $bits
 +}
 diff --git a/package/network/config/firewall/files/firewall.hotplug b/package/network/config/firewall/files/firewall.hotplug
 index f1eab001d4..0a81121821 100644

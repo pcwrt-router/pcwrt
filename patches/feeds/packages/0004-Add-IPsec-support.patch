@@ -1,0 +1,2018 @@
+From 3fbacbfd512a51c8a38c0cf8e349d7b8d68e8f3e Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Mon, 21 Aug 2023 18:12:12 -0500
+Subject: [PATCH] Add IPsec support
+
+---
+ net/strongswan/Makefile                       |  66 +-
+ net/strongswan/files/charon.conf              | 366 +++++++++++
+ .../files/etc/hotplug.d/iface/30-ipsec        |  10 +
+ .../files/etc/hotplug.d/ipsec/01-user         |  21 +-
+ .../files/etc/ipsec.d/cacerts/NordVPN.pem     |  29 +
+ .../ipsec.d/cacerts/ProtonVPN_ike_root.pem    |  33 +
+ .../USERTrustRSACertificationAuthority.pem    |  34 +
+ .../files/etc/ipsec.d/cacerts/gdroot-g2.pem   |  23 +
+ .../files/etc/ipsec.d/cacerts/isrgrootx1.pem  |  31 +
+ .../etc/ipsec.d/cacerts/lets-encrypt-r3.pem   |  30 +
+ .../etc/ipsec.d/cacerts/surfshark_ikev2.pem   |  31 +
+ net/strongswan/files/firewall.include         | 136 ++++
+ net/strongswan/files/gen-client-cert.sh       |   7 +
+ net/strongswan/files/gen-server-keys.sh       |  29 +
+ net/strongswan/files/ipsec.config             |   5 +
+ net/strongswan/files/ipsec.init               | 580 ++++++++----------
+ net/strongswan/files/ipsec.uci-default        |  19 +
+ net/strongswan/files/pki.conf                 |   7 +
+ .../patches/300-include-ipsec-hotplug.patch   |   3 +-
+ .../patches/900-add-resolv-conf-file.patch    |  11 +
+ .../910-disable-ip-rule-creation.patch        |  12 +
+ .../patches/920-add-ipsec-uci-parser.patch    | 214 +++++++
+ 22 files changed, 1332 insertions(+), 365 deletions(-)
+ create mode 100644 net/strongswan/files/charon.conf
+ create mode 100644 net/strongswan/files/etc/hotplug.d/iface/30-ipsec
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/NordVPN.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/ProtonVPN_ike_root.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/USERTrustRSACertificationAuthority.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/gdroot-g2.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/isrgrootx1.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/lets-encrypt-r3.pem
+ create mode 100644 net/strongswan/files/etc/ipsec.d/cacerts/surfshark_ikev2.pem
+ create mode 100644 net/strongswan/files/firewall.include
+ create mode 100644 net/strongswan/files/gen-client-cert.sh
+ create mode 100644 net/strongswan/files/gen-server-keys.sh
+ create mode 100644 net/strongswan/files/ipsec.config
+ create mode 100644 net/strongswan/files/ipsec.uci-default
+ create mode 100644 net/strongswan/files/pki.conf
+ create mode 100644 net/strongswan/patches/900-add-resolv-conf-file.patch
+ create mode 100644 net/strongswan/patches/910-disable-ip-rule-creation.patch
+ create mode 100644 net/strongswan/patches/920-add-ipsec-uci-parser.patch
+
+diff --git a/net/strongswan/Makefile b/net/strongswan/Makefile
+index 160b544b8..670052577 100644
+--- a/net/strongswan/Makefile
++++ b/net/strongswan/Makefile
+@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=strongswan
+ PKG_VERSION:=5.9.2
+-PKG_RELEASE:=3
++PKG_RELEASE:=2
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+ PKG_SOURCE_URL:=https://download.strongswan.org/ https://download2.strongswan.org/
+@@ -121,7 +121,6 @@ endef
+ 
+ define Package/strongswan
+ $(call Package/strongswan/Default)
+-  MENU:=1
+   DEPENDS:= +libpthread +ip \
+ 	+kmod-crypto-authenc \
+ 	+kmod-ipsec +kmod-ipsec4 +IPV6:kmod-ipsec6 \
+@@ -447,16 +446,32 @@ CONFIGURE_ARGS+= \
+ EXTRA_LDFLAGS+= -Wl,-rpath-link,$(STAGING_DIR)/usr/lib
+ 
+ define Package/strongswan/conffiles
++/etc/ipsec.d/
++/etc/ipsec.conf
++/etc/ipsec.secrets
++/etc/ipsec.user
+ /etc/strongswan.conf
+ /etc/strongswan.d/
+ endef
+ 
+ define Package/strongswan/install
+ 	$(INSTALL_DIR) $(1)/etc
++	ln -s /var/ipsec/ipsec.conf $(1)/etc/ipsec.conf
+ 	$(INSTALL_CONF) $(PKG_INSTALL_DIR)/etc/strongswan.conf $(1)/etc/
+-	echo -e "\ninclude /var/ipsec/strongswan.conf" >> $(1)/etc/strongswan.conf
+ 	$(INSTALL_DIR) $(1)/usr/lib/ipsec
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/ipsec/libstrongswan.so.* $(1)/usr/lib/ipsec/
++	ln -s /var/ipsec/ipsec.secrets $(1)/etc/ipsec.secrets
++	$(INSTALL_CONF) ./files/ipsec.user $(1)/etc/
++	$(INSTALL_DIR) $(1)/etc/init.d
++	$(INSTALL_BIN) ./files/ipsec.init $(1)/etc/init.d/ipsec
++	$(INSTALL_DIR) $(1)/usr/share/ipsec
++	$(INSTALL_DATA) ./files/firewall.include $(1)/usr/share/ipsec/firewall.include
++	$(INSTALL_BIN) ./files/gen-server-keys.sh $(1)/usr/share/ipsec/
++	$(INSTALL_BIN) ./files/gen-client-cert.sh $(1)/usr/share/ipsec/
++	$(INSTALL_DIR) $(1)/etc/uci-defaults
++	$(INSTALL_BIN) ./files/ipsec.uci-default $(1)/etc/uci-defaults/90-ipsec
++	$(INSTALL_DIR) $(1)/etc/config
++	$(CP) ./files/ipsec.config $(1)/etc/config/ipsec
+ endef
+ 
+ define Package/strongswan-default/install
+@@ -477,7 +492,7 @@ endef
+ 
+ define Package/strongswan-charon/install
+ 	$(INSTALL_DIR) $(1)/etc/strongswan.d
+-	$(CP) $(PKG_INSTALL_DIR)/etc/strongswan.d/charon.conf $(1)/etc/strongswan.d
++	$(CP) ./files/charon.conf $(1)/etc/strongswan.d
+ 	$(CP) $(PKG_INSTALL_DIR)/etc/strongswan.d/charon-logging.conf $(1)/etc/strongswan.d
+ 	$(INSTALL_DIR) $(1)/usr/lib/ipsec
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/lib/ipsec/charon $(1)/usr/lib/ipsec/
+@@ -489,38 +504,14 @@ define Package/strongswan-charon-cmd/install
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/charon-cmd $(1)/usr/sbin/
+ endef
+ 
+-define Package/strongswan-ipsec/conffiles
+-/etc/ipsec.d/
+-/etc/ipsec.conf
+-/etc/ipsec.secrets
+-/etc/ipsec.user
+-endef
+-
+ define Package/strongswan-ipsec/install
+-	$(INSTALL_DIR) $(1)/etc/ $(1)/usr/sbin
+-	$(INSTALL_CONF) $(PKG_INSTALL_DIR)/etc/ipsec.conf $(1)/etc/
+-	echo -e "\ninclude /var/ipsec/ipsec.conf" >> $(1)/etc/ipsec.conf
+-	$(INSTALL_CONF) ./files/ipsec.secrets $(1)/etc/
+-	echo -e "\ninclude /var/ipsec/ipsec.secrets" >> $(1)/etc/ipsec.secrets
+-	$(INSTALL_CONF) ./files/ipsec.user $(1)/etc/
+-	$(INSTALL_DIR) $(1)/etc/init.d
+-	$(INSTALL_BIN) ./files/ipsec.init $(1)/etc/init.d/ipsec
++	$(INSTALL_DIR) $(1)/usr/sbin
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/ipsec $(1)/usr/sbin/
+ endef
+ 
+-define Package/strongswan-ipsec/postinst
+-#!/bin/sh
+-
+-[ -z "$${IPKG_INSTROOT}" ] || exit 0
+-
+-opkg list-changed-conffiles | grep -qx /etc/ipsec.conf || {
+-	rm -f /etc/ipsec.conf-opkg
+-}
+-endef
+-
+ define Package/strongswan-pki/install
+ 	$(INSTALL_DIR) $(1)/etc/strongswan.d
+-	$(CP) $(PKG_INSTALL_DIR)/etc/strongswan.d/pki.conf $(1)/etc/strongswan.d/
++	$(CP) ./files/pki.conf $(1)/etc/strongswan.d/
+ 	$(INSTALL_DIR) $(1)/usr/bin
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/pki $(1)/usr/bin/
+ endef
+@@ -532,19 +523,12 @@ define Package/strongswan-scepclient/install
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/lib/ipsec/scepclient $(1)/usr/lib/ipsec/
+ endef
+ 
+-define Package/strongswan-swanctl/conffiles
+-/etc/swanctl/
+-endef
+-
+ define Package/strongswan-swanctl/install
+-	$(INSTALL_DIR) $(1)/etc/init.d
+-	$(INSTALL_DIR) $(1)/etc/swanctl/{bliss,conf.d,ecdsa,pkcs{12,8},private,pubkey,rsa}
++	$(INSTALL_DIR) $(1)/etc/swanctl/{bliss,ecdsa,pkcs{12,8},private,pubkey,rsa}
+ 	$(INSTALL_DIR) $(1)/etc/swanctl/x509{,aa,ac,ca,crl,ocsp}
+ 	$(CP) $(PKG_INSTALL_DIR)/etc/swanctl/swanctl.conf $(1)/etc/swanctl/
+-	echo "include /var/swanctl/swanctl.conf" >> $(1)/etc/swanctl/swanctl.conf
+ 	$(INSTALL_DIR) $(1)/usr/sbin
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/swanctl $(1)/usr/sbin/
+-	$(INSTALL_BIN) ./files/swanctl.init $(1)/etc/init.d/swanctl
+ endef
+ 
+ define Package/strongswan-libtls/install
+@@ -582,6 +566,7 @@ define Plugin/stroke/install
+ 	$(INSTALL_DIR) $(1)/usr/lib/ipsec/plugins
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/lib/ipsec/{starter,stroke} $(1)/usr/lib/ipsec/
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/ipsec/plugins/libstrongswan-stroke.so $(1)/usr/lib/ipsec/plugins/
++	$(CP) ./files/etc/ipsec.d/cacerts/* $(1)/etc/ipsec.d/cacerts/
+ endef
+ 
+ define Plugin/updown/install
+@@ -589,8 +574,9 @@ define Plugin/updown/install
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/ipsec/_updown $(1)/usr/lib/ipsec/
+ 	$(CP) $(PKG_INSTALL_DIR)/usr/lib/ipsec/plugins/libstrongswan-updown.so $(1)/usr/lib/ipsec/plugins/
+ 	$(INSTALL_DIR) $(1)/etc/hotplug.d/ipsec
+-	$(CP) ./files/etc/hotplug.d/ipsec/01-user \
+-		$(1)/etc/hotplug.d/ipsec/01-user
++	$(CP) ./files/etc/hotplug.d/ipsec/01-user $(1)/etc/hotplug.d/ipsec/01-user
++	$(INSTALL_DIR) $(1)/etc/hotplug.d/iface
++	$(CP) ./files/etc/hotplug.d/iface/30-ipsec $(1)/etc/hotplug.d/iface/30-ipsec
+ endef
+ 
+ define Plugin/vici/install
+diff --git a/net/strongswan/files/charon.conf b/net/strongswan/files/charon.conf
+new file mode 100644
+index 000000000..9f50af13d
+--- /dev/null
++++ b/net/strongswan/files/charon.conf
+@@ -0,0 +1,366 @@
++# Options for the charon IKE daemon.
++charon {
++
++    # Accept unencrypted ID and HASH payloads in IKEv1 Main Mode.
++    # accept_unencrypted_mainmode_messages = no
++
++    # Maximum number of half-open IKE_SAs for a single peer IP.
++    # block_threshold = 5
++
++    # Whether Certificate Revocation Lists (CRLs) fetched via HTTP or LDAP
++    # should be saved under a unique file name derived from the public key of
++    # the Certification Authority (CA) to /etc/ipsec.d/crls (stroke) or
++    # /etc/swanctl/x509crl (vici), respectively.
++    # cache_crls = no
++
++    # Whether relations in validated certificate chains should be cached in
++    # memory.
++    # cert_cache = yes
++
++    # Send Cisco Unity vendor ID payload (IKEv1 only).
++    # cisco_unity = no
++
++    # Close the IKE_SA if setup of the CHILD_SA along with IKE_AUTH failed.
++    # close_ike_on_child_failure = no
++
++    # Number of half-open IKE_SAs that activate the cookie mechanism.
++    # cookie_threshold = 10
++
++    # Delete CHILD_SAs right after they got successfully rekeyed (IKEv1 only).
++    # delete_rekeyed = no
++
++    # Delay in seconds until inbound IPsec SAs are deleted after rekeyings
++    # (IKEv2 only).
++    # delete_rekeyed_delay = 5
++
++    # Use ANSI X9.42 DH exponent size or optimum size matched to cryptographic
++    # strength.
++    # dh_exponent_ansi_x9_42 = yes
++
++    # Use RTLD_NOW with dlopen when loading plugins and IMV/IMCs to reveal
++    # missing symbols immediately.
++    # dlopen_use_rtld_now = no
++
++    # DNS server assigned to peer via configuration payload (CP).
++    # dns1 =
++
++    # DNS server assigned to peer via configuration payload (CP).
++    # dns2 =
++
++    # Enable Denial of Service protection using cookies and aggressiveness
++    # checks.
++    # dos_protection = yes
++
++    # Compliance with the errata for RFC 4753.
++    # ecp_x_coordinate_only = yes
++
++    # Free objects during authentication (might conflict with plugins).
++    # flush_auth_cfg = no
++
++    # Whether to follow IKEv2 redirects (RFC 5685).
++    # follow_redirects = yes
++
++    # Maximum size (complete IP datagram size in bytes) of a sent IKE fragment
++    # when using proprietary IKEv1 or standardized IKEv2 fragmentation, defaults
++    # to 1280 (use 0 for address family specific default values, which uses a
++    # lower value for IPv4).  If specified this limit is used for both IPv4 and
++    # IPv6.
++    # fragment_size = 1280
++
++    # Name of the group the daemon changes to after startup.
++    # group =
++
++    # Timeout in seconds for connecting IKE_SAs (also see IKE_SA_INIT DROPPING).
++    # half_open_timeout = 30
++
++    # Enable hash and URL support.
++    # hash_and_url = no
++
++    # Allow IKEv1 Aggressive Mode with pre-shared keys as responder.
++    # i_dont_care_about_security_and_use_aggressive_mode_psk = no
++
++    # Whether to ignore the traffic selectors from the kernel's acquire events
++    # for IKEv2 connections (they are not used for IKEv1).
++    # ignore_acquire_ts = no
++
++    # A space-separated list of routing tables to be excluded from route
++    # lookups.
++    # ignore_routing_tables =
++
++    # Maximum number of IKE_SAs that can be established at the same time before
++    # new connection attempts are blocked.
++    # ikesa_limit = 0
++
++    # Number of exclusively locked segments in the hash table.
++    # ikesa_table_segments = 1
++
++    # Size of the IKE_SA hash table.
++    # ikesa_table_size = 1
++
++    # Whether to close IKE_SA if the only CHILD_SA closed due to inactivity.
++    # inactivity_close_ike = no
++
++    # Limit new connections based on the current number of half open IKE_SAs,
++    # see IKE_SA_INIT DROPPING in strongswan.conf(5).
++    # init_limit_half_open = 0
++
++    # Limit new connections based on the number of queued jobs.
++    # init_limit_job_load = 0
++
++    # Causes charon daemon to ignore IKE initiation requests.
++    # initiator_only = no
++
++    # Install routes into a separate routing table for established IPsec
++    # tunnels.
++    install_routes = no
++
++    # Install virtual IP addresses.
++    # install_virtual_ip = yes
++
++    # The name of the interface on which virtual IP addresses should be
++    # installed.
++    # install_virtual_ip_on =
++
++    # Check daemon, libstrongswan and plugin integrity at startup.
++    # integrity_test = no
++
++    # A comma-separated list of network interfaces that should be ignored, if
++    # interfaces_use is specified this option has no effect.
++    # interfaces_ignore =
++
++    # A comma-separated list of network interfaces that should be used by
++    # charon. All other interfaces are ignored.
++    interfaces_use = %wan%
++
++    # NAT keep alive interval.
++    # keep_alive = 20s
++
++    # Plugins to load in the IKE daemon charon.
++    # load =
++
++    # Determine plugins to load via each plugin's load option.
++    # load_modular = no
++
++    # Initiate IKEv2 reauthentication with a make-before-break scheme.
++    # make_before_break = no
++
++    # Maximum number of IKEv1 phase 2 exchanges per IKE_SA to keep state about
++    # and track concurrently.
++    # max_ikev1_exchanges = 3
++
++    # Maximum packet size accepted by charon.
++    # max_packet = 10000
++
++    # Enable multiple authentication exchanges (RFC 4739).
++    # multiple_authentication = yes
++
++    # WINS servers assigned to peer via configuration payload (CP).
++    # nbns1 =
++
++    # WINS servers assigned to peer via configuration payload (CP).
++    # nbns2 =
++
++    # UDP port used locally. If set to 0 a random port will be allocated.
++    # port = 500
++
++    # UDP port used locally in case of NAT-T. If set to 0 a random port will be
++    # allocated.  Has to be different from charon.port, otherwise a random port
++    # will be allocated.
++    # port_nat_t = 4500
++
++    # Whether to prefer updating SAs to the path with the best route.
++    # prefer_best_path = no
++
++    # Prefer locally configured proposals for IKE/IPsec over supplied ones as
++    # responder (disabling this can avoid keying retries due to
++    # INVALID_KE_PAYLOAD notifies).
++    # prefer_configured_proposals = yes
++
++    # By default public IPv6 addresses are preferred over temporary ones (RFC
++    # 4941), to make connections more stable. Enable this option to reverse
++    # this.
++    # prefer_temporary_addrs = no
++
++    # Process RTM_NEWROUTE and RTM_DELROUTE events.
++    # process_route = yes
++
++    # Delay in ms for receiving packets, to simulate larger RTT.
++    # receive_delay = 0
++
++    # Delay request messages.
++    # receive_delay_request = yes
++
++    # Delay response messages.
++    # receive_delay_response = yes
++
++    # Specific IKEv2 message type to delay, 0 for any.
++    # receive_delay_type = 0
++
++    # Size of the AH/ESP replay window, in packets.
++    # replay_window = 32
++
++    # Base to use for calculating exponential back off, see IKEv2 RETRANSMISSION
++    # in strongswan.conf(5).
++    # retransmit_base = 1.8
++
++    # Maximum jitter in percent to apply randomly to calculated retransmission
++    # timeout (0 to disable).
++    # retransmit_jitter = 0
++
++    # Upper limit in seconds for calculated retransmission timeout (0 to
++    # disable).
++    # retransmit_limit = 0
++
++    # Timeout in seconds before sending first retransmit.
++    # retransmit_timeout = 4.0
++
++    # Number of times to retransmit a packet before giving up.
++    # retransmit_tries = 5
++
++    # Interval in seconds to use when retrying to initiate an IKE_SA (e.g. if
++    # DNS resolution failed), 0 to disable retries.
++    # retry_initiate_interval = 0
++
++    # Initiate CHILD_SA within existing IKE_SAs (always enabled for IKEv1).
++    # reuse_ikesa = yes
++
++    # Numerical routing table to install routes to.
++    # routing_table =
++
++    # Priority of the routing table.
++    # routing_table_prio =
++
++    # Whether to use RSA with PSS padding instead of PKCS#1 padding by default.
++    # rsa_pss = no
++
++    # Delay in ms for sending packets, to simulate larger RTT.
++    # send_delay = 0
++
++    # Delay request messages.
++    # send_delay_request = yes
++
++    # Delay response messages.
++    # send_delay_response = yes
++
++    # Specific IKEv2 message type to delay, 0 for any.
++    # send_delay_type = 0
++
++    # Send strongSwan vendor ID payload
++    # send_vendor_id = no
++
++    # Whether to enable Signature Authentication as per RFC 7427.
++    # signature_authentication = yes
++
++    # Whether to enable constraints against IKEv2 signature schemes.
++    # signature_authentication_constraints = yes
++
++    # The upper limit for SPIs requested from the kernel for IPsec SAs.
++    # spi_max = 0xcfffffff
++
++    # The lower limit for SPIs requested from the kernel for IPsec SAs.
++    # spi_min = 0xc0000000
++
++    # Number of worker threads in charon.
++    # threads = 16
++
++    # Name of the user the daemon changes to after startup.
++    # user =
++
++    crypto_test {
++
++        # Benchmark crypto algorithms and order them by efficiency.
++        # bench = no
++
++        # Buffer size used for crypto benchmark.
++        # bench_size = 1024
++
++        # Time in ms during which crypto algorithm performance is measured.
++        # bench_time = 50
++
++        # Test crypto algorithms during registration (requires test vectors
++        # provided by the test-vectors plugin).
++        # on_add = no
++
++        # Test crypto algorithms on each crypto primitive instantiation.
++        # on_create = no
++
++        # Strictly require at least one test vector to enable an algorithm.
++        # required = no
++
++        # Whether to test RNG with TRUE quality; requires a lot of entropy.
++        # rng_true = no
++
++    }
++
++    host_resolver {
++
++        # Maximum number of concurrent resolver threads (they are terminated if
++        # unused).
++        # max_threads = 3
++
++        # Minimum number of resolver threads to keep around.
++        # min_threads = 0
++
++    }
++
++    leak_detective {
++
++        # Includes source file names and line numbers in leak detective output.
++        # detailed = yes
++
++        # Threshold in bytes for leaks to be reported (0 to report all).
++        # usage_threshold = 10240
++
++        # Threshold in number of allocations for leaks to be reported (0 to
++        # report all).
++        # usage_threshold_count = 0
++
++    }
++
++    processor {
++
++        # Section to configure the number of reserved threads per priority class
++        # see JOB PRIORITY MANAGEMENT in strongswan.conf(5).
++        priority_threads {
++
++        }
++
++    }
++
++    # Section containing a list of scripts (name = path) that are executed when
++    # the daemon is started.
++    start-scripts {
++
++    }
++
++    # Section containing a list of scripts (name = path) that are executed when
++    # the daemon is terminated.
++    stop-scripts {
++
++    }
++
++    tls {
++
++        # List of TLS encryption ciphers.
++        # cipher =
++
++        # List of TLS key exchange methods.
++        # key_exchange =
++
++        # List of TLS MAC algorithms.
++        # mac =
++
++        # List of TLS cipher suites.
++        # suites =
++
++    }
++
++    x509 {
++
++        # Discard certificates with unsupported or unknown critical extensions.
++        # enforce_critical = yes
++
++    }
++
++}
++
+diff --git a/net/strongswan/files/etc/hotplug.d/iface/30-ipsec b/net/strongswan/files/etc/hotplug.d/iface/30-ipsec
+new file mode 100644
+index 000000000..a18d282f3
+--- /dev/null
++++ b/net/strongswan/files/etc/hotplug.d/iface/30-ipsec
+@@ -0,0 +1,10 @@
++#!/bin/sh
++[ "$ACTION" = ifup -o "$ACTION" = ifupdate -o "$ACTION" = ifdown ] || exit 0
++[ "$ACTION" = ifupdate -a -z "$IFUPDATE_ADDRESSES" -a -z "$IFUPDATE_DATA" ] && exit 0
++
++[ "$INTERFACE" = wan ] && {
++    . /lib/functions.sh
++    /etc/init.d/ipsec enabled && /etc/init.d/ipsec restart && /etc/init.d/firewall reload
++}
++
++return 0
+diff --git a/net/strongswan/files/etc/hotplug.d/ipsec/01-user b/net/strongswan/files/etc/hotplug.d/ipsec/01-user
+index 3d485c8b7..dcc485370 100644
+--- a/net/strongswan/files/etc/hotplug.d/ipsec/01-user
++++ b/net/strongswan/files/etc/hotplug.d/ipsec/01-user
+@@ -1,7 +1,20 @@
+ #!/bin/sh
+-
+-[ -e "/etc/ipsec.user" ] && {
+-	. /etc/ipsec.user "$2"
+-}
++case "$PLUTO_VERB:$1" in
++up-client:ipsec)
++    vpnrule=$(ip rule show | sed -n 's/^219:\s*//p')
++    [ -n "$vpnrule" ] && ip rule del $vpnrule
++    ip rule add from $PLUTO_MY_SOURCEIP lookup 220 priority 219
++    /etc/init.d/dnsmasq restart
++    /etc/init.d/firewall reload >/dev/null 2>&1
++	;;
++down-client:ipsec)
++    vpnrule=$(ip rule show | sed -n 's/^219:\s*//p')
++    [ -n "$vpnrule" ] && ip rule del $vpnrule
++    /etc/init.d/dnsmasq restart
++    /etc/init.d/firewall reload >/dev/null 2>&1
++	;;
++*)
++	;;
++esac
+ 
+ exit 0
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/NordVPN.pem b/net/strongswan/files/etc/ipsec.d/cacerts/NordVPN.pem
+new file mode 100644
+index 000000000..23fd7aa71
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/NordVPN.pem
+@@ -0,0 +1,29 @@
++-----BEGIN CERTIFICATE-----
++MIIFCjCCAvKgAwIBAgIBATANBgkqhkiG9w0BAQ0FADA5MQswCQYDVQQGEwJQQTEQ
++MA4GA1UEChMHTm9yZFZQTjEYMBYGA1UEAxMPTm9yZFZQTiBSb290IENBMB4XDTE2
++MDEwMTAwMDAwMFoXDTM1MTIzMTIzNTk1OVowOTELMAkGA1UEBhMCUEExEDAOBgNV
++BAoTB05vcmRWUE4xGDAWBgNVBAMTD05vcmRWUE4gUm9vdCBDQTCCAiIwDQYJKoZI
++hvcNAQEBBQADggIPADCCAgoCggIBAMkr/BYhyo0F2upsIMXwC6QvkZps3NN2/eQF
++kfQIS1gql0aejsKsEnmY0Kaon8uZCTXPsRH1gQNgg5D2gixdd1mJUvV3dE3y9FJr
++XMoDkXdCGBodvKJyU6lcfEVF6/UxHcbBguZK9UtRHS9eJYm3rpL/5huQMCppX7kU
++eQ8dpCwd3iKITqwd1ZudDqsWaU0vqzC2H55IyaZ/5/TnCk31Q1UP6BksbbuRcwOV
++skEDsm6YoWDnn/IIzGOYnFJRzQH5jTz3j1QBvRIuQuBuvUkfhx1FEwhwZigrcxXu
++MP+QgM54kezgziJUaZcOM2zF3lvrwMvXDMfNeIoJABv9ljw969xQ8czQCU5lMVmA
++37ltv5Ec9U5hZuwk/9QO1Z+d/r6Jx0mlurS8gnCAKJgwa3kyZw6e4FZ8mYL4vpRR
++hPdvRTWCMJkeB4yBHyhxUmTRgJHm6YR3D6hcFAc9cQcTEl/I60tMdz33G6m0O42s
++Qt/+AR3YCY/RusWVBJB/qNS94EtNtj8iaebCQW1jHAhvGmFILVR9lzD0EzWKHkvy
++WEjmUVRgCDd6Ne3eFRNS73gdv/C3l5boYySeu4exkEYVxVRn8DhCxs0MnkMHWFK6
++MyzXCCn+JnWFDYPfDKHvpff/kLDobtPBf+Lbch5wQy9quY27xaj0XwLyjOltpiST
++LWae/Q4vAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgEGMA0GCSqG
++SIb3DQEBDQUAA4ICAQC9fUL2sZPxIN2mD32VeNySTgZlCEdVmlq471o/bDMP4B8g
++nQesFRtXY2ZCjs50Jm73B2LViL9qlREmI6vE5IC8IsRBJSV4ce1WYxyXro5rmVg/
++k6a10rlsbK/eg//GHoJxDdXDOokLUSnxt7gk3QKpX6eCdh67p0PuWm/7WUJQxH2S
++DxsT9vB/iZriTIEe/ILoOQF0Aqp7AgNCcLcLAmbxXQkXYCCSB35Vp06u+eTWjG0/
++pyS5V14stGtw+fA0DJp5ZJV4eqJ5LqxMlYvEZ/qKTEdoCeaXv2QEmN6dVqjDoTAo
++k0t5u4YRXzEVCfXAC3ocplNdtCA72wjFJcSbfif4BSC8bDACTXtnPC7nD0VndZLp
+++RiNLeiENhk0oTC+UVdSc+n2nJOzkCK0vYu0Ads4JGIB7g8IB3z2t9ICmsWrgnhd
++NdcOe15BincrGA8avQ1cWXsfIKEjbrnEuEk9b5jel6NfHtPKoHc9mDpRdNPISeVa
++wDBM1mJChneHt59Nh8Gah74+TM1jBsw4fhJPvoc7Atcg740JErb904mZfkIEmojC
++VPhBHVQ9LHBAdM8qFI2kRK0IynOmAZhexlP/aT/kpEsEPyaZQlnBn3An1CRz8h0S
++PApL8PytggYKeQmRhl499+6jLxcZ2IegLfqq41dzIjwHwTMplg+1pKIOVojpWA==
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/ProtonVPN_ike_root.pem b/net/strongswan/files/etc/ipsec.d/cacerts/ProtonVPN_ike_root.pem
+new file mode 100644
+index 000000000..6cc7940df
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/ProtonVPN_ike_root.pem
+@@ -0,0 +1,33 @@
++-----BEGIN CERTIFICATE-----
++MIIFozCCA4ugAwIBAgIBATANBgkqhkiG9w0BAQ0FADBAMQswCQYDVQQGEwJDSDEV
++MBMGA1UEChMMUHJvdG9uVlBOIEFHMRowGAYDVQQDExFQcm90b25WUE4gUm9vdCBD
++QTAeFw0xNzAyMTUxNDM4MDBaFw0yNzAyMTUxNDM4MDBaMEAxCzAJBgNVBAYTAkNI
++MRUwEwYDVQQKEwxQcm90b25WUE4gQUcxGjAYBgNVBAMTEVByb3RvblZQTiBSb290
++IENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAt+BsSsZg7+AuqTq7
++vDbPzfygtl9f8fLJqO4amsyOXlI7pquL5IsEZhpWyJIIvYybqS4s1/T7BbvHPLVE
++wlrq8A5DBIXcfuXrBbKoYkmpICGc2u1KYVGOZ9A+PH9z4Tr6OXFfXRnsbZToie8t
++2Xjv/dZDdUDAqeW89I/mXg3k5x08m2nfGCQDm4gCanN1r5MT7ge56z0MkY3FFGCO
++qRwspIEUzu1ZqGSTkG1eQiOYIrdOF5cc7n2APyvBIcfvp/W3cpTOEmEBJ7/14RnX
++nHo0fcx61Inx/6ZxzKkW8BMdGGQF3tF6u2M0FjVN0lLH9S0ul1TgoOS56yEJ34hr
++JSRTqHuar3t/xdCbKFZjyXFZFNsXVvgJu34CNLrHHTGJj9jiUfFnxWQYMo9UNUd4
++a3PPG1HnbG7LAjlvj5JlJ5aqO5gshdnqb9uIQeR2CdzcCJgklwRGCyDT1pm7eoiv
++WV19YBd81vKulLzgPavu3kRRe83yl29It2hwQ9FMs5w6ZV/X6ciTKo3etkX9nBD9
++ZzJPsGQsBUy7CzO1jK4W01+u3ItmQS+1s4xtcFxdFY8o/q1zoqBlxpe5MQIWN6Qa
++lryiET74gMHE/S5WrPlsq/gehxsdgc6GDUXG4dk8vn6OUMa6wb5wRO3VXGEc67IY
++m4mDFTYiPvLaFOxtndlUWuCruKcCAwEAAaOBpzCBpDAMBgNVHRMEBTADAQH/MB0G
++A1UdDgQWBBSDkIaYhLVZTwyLNTetNB2qV0gkVDBoBgNVHSMEYTBfgBSDkIaYhLVZ
++TwyLNTetNB2qV0gkVKFEpEIwQDELMAkGA1UEBhMCQ0gxFTATBgNVBAoTDFByb3Rv
++blZQTiBBRzEaMBgGA1UEAxMRUHJvdG9uVlBOIFJvb3QgQ0GCAQEwCwYDVR0PBAQD
++AgEGMA0GCSqGSIb3DQEBDQUAA4ICAQCYr7LpvnfZXBCxVIVc2ea1fjxQ6vkTj0zM
++htFs3qfeXpMRf+g1NAh4vv1UIwLsczilMt87SjpJ25pZPyS3O+/VlI9ceZMvtGXd
++MGfXhTDp//zRoL1cbzSHee9tQlmEm1tKFxB0wfWd/inGRjZxpJCTQh8oc7CTziHZ
++ufS+Jkfpc4Rasr31fl7mHhJahF1j/ka/OOWmFbiHBNjzmNWPQInJm+0ygFqij5qs
++51OEvubR8yh5Mdq4TNuWhFuTxpqoJ87VKaSOx/Aefca44Etwcj4gHb7LThidw/ky
++zysZiWjyrbfX/31RX7QanKiMk2RDtgZaWi/lMfsl5O+6E2lJ1vo4xv9pW8225B5X
++eAeXHCfjV/vrrCFqeCprNF6a3Tn/LX6VNy3jbeC+167QagBOaoDA01XPOx7Odhsb
++Gd7cJ5VkgyycZgLnT9zrChgwjx59JQosFEG1DsaAgHfpEl/N3YPJh68N7fwN41Cj
++zsk39v6iZdfuet/sP7oiP5/gLmA/CIPNhdIYxaojbLjFPkftVjVPn49RqwqzJJPR
++N8BOyb94yhQ7KO4F3IcLT/y/dsWitY0ZH4lCnAVV/v2YjWAWS3OWyC8BFx/Jmc3W
++DK/yPwECUcPgHIeXiRjHnJt0Zcm23O2Q3RphpU+1SO3XixsXpOVOYP6rJIXW9bMZ
++A1gTTlpi7A==
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/USERTrustRSACertificationAuthority.pem b/net/strongswan/files/etc/ipsec.d/cacerts/USERTrustRSACertificationAuthority.pem
+new file mode 100644
+index 000000000..2795cf313
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/USERTrustRSACertificationAuthority.pem
+@@ -0,0 +1,34 @@
++-----BEGIN CERTIFICATE-----
++MIIF3jCCA8agAwIBAgIQAf1tMPyjylGoG7xkDjUDLTANBgkqhkiG9w0BAQwFADCB
++iDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0pl
++cnNleSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNV
++BAMTJVVTRVJUcnVzdCBSU0EgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwHhcNMTAw
++MjAxMDAwMDAwWhcNMzgwMTE4MjM1OTU5WjCBiDELMAkGA1UEBhMCVVMxEzARBgNV
++BAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0plcnNleSBDaXR5MR4wHAYDVQQKExVU
++aGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNVBAMTJVVTRVJUcnVzdCBSU0EgQ2Vy
++dGlmaWNhdGlvbiBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK
++AoICAQCAEmUXNg7D2wiz0KxXDXbtzSfTTK1Qg2HiqiBNCS1kCdzOiZ/MPans9s/B
++3PHTsdZ7NygRK0faOca8Ohm0X6a9fZ2jY0K2dvKpOyuR+OJv0OwWIJAJPuLodMkY
++tJHUYmTbf6MG8YgYapAiPLz+E/CHFHv25B+O1ORRxhFnRghRy4YUVD+8M/5+bJz/
++Fp0YvVGONaanZshyZ9shZrHUm3gDwFA66Mzw3LyeTP6vBZY1H1dat//O+T23LLb2
++VN3I5xI6Ta5MirdcmrS3ID3KfyI0rn47aGYBROcBTkZTmzNg95S+UzeQc0PzMsNT
++79uq/nROacdrjGCT3sTHDN/hMq7MkztReJVni+49Vv4M0GkPGw/zJSZrM233bkf6
++c0Plfg6lZrEpfDKEY1WJxA3Bk1QwGROs0303p+tdOmw1XNtB1xLaqUkL39iAigmT
++Yo61Zs8liM2EuLE/pDkP2QKe6xJMlXzzawWpXhaDzLhn4ugTncxbgtNMs+1b/97l
++c6wjOy0AvzVVdAlJ2ElYGn+SNuZRkg7zJn0cTRe8yexDJtC/QV9AqURE9JnnV4ee
++UB9XVKg+/XRjL7FQZQnmWEIuQxpMtPAlR1n6BB6T1CZGSlCBst6+eLf8ZxXhyVeE
++Hg9j1uliutZfVS7qXMYoCAQlObgOK6nyTJccBz8NUvXt7y+CDwIDAQABo0IwQDAd
++BgNVHQ4EFgQUU3m/WqorSs9UgOHYm8Cd8rIDZsswDgYDVR0PAQH/BAQDAgEGMA8G
++A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEMBQADggIBAFzUfA3P9wF9QZllDHPF
++Up/L+M+ZBn8b2kMVn54CVVeWFPFSPCeHlCjtHzoBN6J2/FNQwISbxmtOuowhT6KO
++VWKR82kV2LyI48SqC/3vqOlLVSoGIG1VeCkZ7l8wXEskEVX/JJpuXior7gtNn3/3
++ATiUFJVDBwn7YKnuHKsSjKCaXqeYalltiz8I+8jRRa8YFWSQEg9zKC7F4iRO/Fjs
++8PRF/iKz6y+O0tlFYQXBl2+odnKPi4w2r78NBc5xjeambx9spnFixdjQg3IM8WcR
++iQycE0xyNN+81XHfqnHd4blsjDwSXWXavVcStkNr/+XeTWYRUc+ZruwXtuhxkYze
++Sf7dNXGiFSeUHM9h4ya7b6NnJSFd5t0dCy5oGzuCr+yDZ4XUmFF0sbmZgIn/f3gZ
++XHlKYC6SQK5MNyosycdiyA5d9zZbyuAlJQG03RoHnHcAP9Dc1ew91Pq7P8yF1m9/
++qS3fuQL39ZeatTXaw2ewh0qpKJ4jjv9cJ2vhsE/zB+4ALtRZh8tSQZXq9EfX7mRB
++VXyNWQKV3WKdwrnuWih0hKWbt5DHDAff9Yk2dDLWKMGwsAvgnEzDHNb842m1R0aB
++L6KCq9NjRHDEjf8tM7qtj3u1cIiuPhnPQCjY/MiQu12ZIvVS5ljFH4gxQ+6IHdfG
++jjxDah2nGN59PRbxYvnKkKj9
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/gdroot-g2.pem b/net/strongswan/files/etc/ipsec.d/cacerts/gdroot-g2.pem
+new file mode 100644
+index 000000000..c2b290781
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/gdroot-g2.pem
+@@ -0,0 +1,23 @@
++-----BEGIN CERTIFICATE-----
++MIIDxTCCAq2gAwIBAgIBADANBgkqhkiG9w0BAQsFADCBgzELMAkGA1UEBhMCVVMx
++EDAOBgNVBAgTB0FyaXpvbmExEzARBgNVBAcTClNjb3R0c2RhbGUxGjAYBgNVBAoT
++EUdvRGFkZHkuY29tLCBJbmMuMTEwLwYDVQQDEyhHbyBEYWRkeSBSb290IENlcnRp
++ZmljYXRlIEF1dGhvcml0eSAtIEcyMB4XDTA5MDkwMTAwMDAwMFoXDTM3MTIzMTIz
++NTk1OVowgYMxCzAJBgNVBAYTAlVTMRAwDgYDVQQIEwdBcml6b25hMRMwEQYDVQQH
++EwpTY290dHNkYWxlMRowGAYDVQQKExFHb0RhZGR5LmNvbSwgSW5jLjExMC8GA1UE
++AxMoR28gRGFkZHkgUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgLSBHMjCCASIw
++DQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAL9xYgjx+lk09xvJGKP3gElY6SKD
++E6bFIEMBO4Tx5oVJnyfq9oQbTqC023CYxzIBsQU+B07u9PpPL1kwIuerGVZr4oAH
++/PMWdYA5UXvl+TW2dE6pjYIT5LY/qQOD+qK+ihVqf94Lw7YZFAXK6sOoBJQ7Rnwy
++DfMAZiLIjWltNowRGLfTshxgtDj6AozO091GB94KPutdfMh8+7ArU6SSYmlRJQVh
++GkSBjCypQ5Yj36w6gZoOKcUcqeldHraenjAKOc7xiID7S13MMuyFYkMlNAJWJwGR
++tDtwKj9useiciAF9n9T521NtYJ2/LOdYq7hfRvzOxBsDPAnrSTFcaUaz4EcCAwEA
++AaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYE
++FDqahQcQZyi27/a9BUFuIMGU2g/eMA0GCSqGSIb3DQEBCwUAA4IBAQCZ21151fmX
++WWcDYfF+OwYxdS2hII5PZYe096acvNjpL9DbWu7PdIxztDhC2gV7+AJ1uP2lsdeu
++9tfeE8tTEH6KRtGX+rcuKxGrkLAngPnon1rpN5+r5N9ss4UXnT3ZJE95kTXWXwTr
++gIOrmgIttRD02JDHBHNA7XIloKmf7J6raBKZV8aPEjoJpL1E/QYVN8Gb5DKj7Tjo
++2GTzLH4U/ALqn83/B2gX2yKQOC16jdFU8WnjXzPKej17CuPKf1855eJ1usV2GDPO
++LPAvTK33sefOT6jEm0pUBsV/fdUID+Ic/n4XuKxe9tQWskMJDE32p2u0mYRlynqI
++4uJEvlz36hz1
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/isrgrootx1.pem b/net/strongswan/files/etc/ipsec.d/cacerts/isrgrootx1.pem
+new file mode 100644
+index 000000000..b85c8037f
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/isrgrootx1.pem
+@@ -0,0 +1,31 @@
++-----BEGIN CERTIFICATE-----
++MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
++TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
++cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
++WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
++ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
++MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
++h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
++0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
++A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
++T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
++B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
++B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
++KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
++OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
++jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
++qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
++rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
++HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
++hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
++ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
++3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
++NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
++ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
++TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
++jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
++oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
++4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
++mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
++emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/lets-encrypt-r3.pem b/net/strongswan/files/etc/ipsec.d/cacerts/lets-encrypt-r3.pem
+new file mode 100644
+index 000000000..43b222a60
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/lets-encrypt-r3.pem
+@@ -0,0 +1,30 @@
++-----BEGIN CERTIFICATE-----
++MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw
++TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
++cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw
++WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg
++RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
++AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP
++R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx
++sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm
++NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg
++Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG
++/kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC
++AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB
++Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA
++FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw
++AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw
++Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB
++gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W
++PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl
++ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz
++CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm
++lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4
++avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2
++yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O
++yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids
++hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+
++HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv
++MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX
++nLRbwHOoq7hHwg==
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/etc/ipsec.d/cacerts/surfshark_ikev2.pem b/net/strongswan/files/etc/ipsec.d/cacerts/surfshark_ikev2.pem
+new file mode 100644
+index 000000000..398f47905
+--- /dev/null
++++ b/net/strongswan/files/etc/ipsec.d/cacerts/surfshark_ikev2.pem
+@@ -0,0 +1,31 @@
++-----BEGIN CERTIFICATE-----
++MIIFTTCCAzWgAwIBAgIJAMs9S3fqwv+mMA0GCSqGSIb3DQEBCwUAMD0xCzAJBgNV
++BAYTAlZHMRIwEAYDVQQKDAlTdXJmc2hhcmsxGjAYBgNVBAMMEVN1cmZzaGFyayBS
++b290IENBMB4XDTE4MDMxNDA4NTkyM1oXDTI4MDMxMTA4NTkyM1owPTELMAkGA1UE
++BhMCVkcxEjAQBgNVBAoMCVN1cmZzaGFyazEaMBgGA1UEAwwRU3VyZnNoYXJrIFJv
++b3QgQ0EwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDEGMNj0aisM63o
++SkmVJyZPaYX7aPsZtzsxo6m6p5Wta3MGASoryRsBuRaH6VVa0fwbI1nw5ubyxkua
++Na4v3zHVwuSq6F1p8S811+1YP1av+jqDcMyojH0ujZSHIcb/i5LtaHNXBQ3qN48C
++c7sqBnTIIFpmb5HthQ/4pW+a82b1guM5dZHsh7q+LKQDIGmvtMtO1+NEnmj81BAp
++FayiaD1ggvwDI4x7o/Y3ksfWSCHnqXGyqzSFLh8QuQrTmWUm84YHGFxoI1/8AKdI
++yVoB6BjcaMKtKs/pbctk6vkzmYf0XmGovDKPQF6MwUekchLjB5gSBNnptSQ9kNgn
++TLqi0OpSwI6ixX52Ksva6UM8P01ZIhWZ6ua/T/tArgODy5JZMW+pQ1A6L0b7egIe
++ghpwKnPRG+5CzgO0J5UE6gv000mqbmC3CbiS8xi2xuNgruAyY2hUOoV9/BuBev8t
++tE5ZCsJH3YlG6NtbZ9hPc61GiBSx8NJnX5QHyCnfic/X87eST/amZsZCAOJ5v4EP
++SaKrItt+HrEFWZQIq4fJmHJNNbYvWzCE08AL+5/6Z+lxb/Bm3dapx2zdit3x2e+m
++iGHekuiE8lQWD0rXD4+T+nDRi3X+kyt8Ex/8qRiUfrisrSHFzVMRungIMGdO9O/z
++CINFrb7wahm4PqU2f12Z9TRCOTXciQIDAQABo1AwTjAdBgNVHQ4EFgQUYRpbQwyD
++ahLMN3F2ony3+UqOYOgwHwYDVR0jBBgwFoAUYRpbQwyDahLMN3F2ony3+UqOYOgw
++DAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAn9zV7F/XVnFNZhHFrt0Z
++S1Yqz+qM9CojLmiyblMFh0p7t+Hh+VKVgMwrz0LwDH4UsOosXA28eJPmech6/bjf
++ymkoXISy/NUSTFpUChGO9RabGGxJsT4dugOw9MPaIVZffny4qYOc/rXDXDSfF2b+
++303lLPI43y9qoe0oyZ1vtk/UKG75FkWfFUogGNbpOkuz+et5Y0aIEiyg0yh6/l5Q
++5h8+yom0HZnREHhqieGbkaGKLkyu7zQ4D4tRK/mBhd8nv+09GtPEG+D5LPbabFVx
++KjBMP4Vp24WuSUOqcGSsURHevawPVBfgmsxf1UCjelaIwngdh6WfNCRXa5QQPQTK
++ubQvkvXONCDdhmdXQccnRX1nJWhPYi0onffvjsWUfztRypsKzX4dvM9k7xnIcGSG
++EnCC4RCgt1UiZIj7frcCMssbA6vJ9naM0s7JF7N3VKeHJtqe1OCRHMYnWUZt9vrq
++X6IoIHlZCoLlv39wFW9QNxelcAOCVbD+19MZ0ZXt7LitjIqe7yF5WxDQN4xru087
++FzQ4Hfj7eH1SNLLyKZkA1eecjmRoi/OoqAt7afSnwtQLtMUc2bQDg6rHt5C0e4dC
++LqP/9PGZTSJiwmtRHJ/N5qYWIh9ju83APvLm/AGBTR2pXmj9G3KdVOkpIC7L35dI
++623cSEC3Q3UZutsEm/UplsM=
++-----END CERTIFICATE-----
+diff --git a/net/strongswan/files/firewall.include b/net/strongswan/files/firewall.include
+new file mode 100644
+index 000000000..e4c054e38
+--- /dev/null
++++ b/net/strongswan/files/firewall.include
+@@ -0,0 +1,136 @@
++#!/bin/sh
++/etc/init.d/ipsec enabled || return
++
++. /lib/functions.sh
++. /lib/functions/network.sh
++. /lib/functions/system.sh
++network_get_device ifwan wan
++network_get_ipaddr wanip wan
++
++iptables -S zone_wan_input | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -S forwarding_rule | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -S input_wan_rule | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -t mangle -S FORWARD | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables -t mangle ${RULE/-A/-D}
++done
++
++iptables -t mangle -S OUTPUT | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables -t mangle ${RULE/-A/-D}
++done
++
++iptables -t nat -S postrouting_rule | grep '!fw3: ipsec' | while read RULE; do
++    eval iptables -t nat ${RULE/-A/-D}
++done
++
++[ $(uci get ipsec.@server[0].enabled) = "1" ] && {
++    ipaddr=$(uci get ipsec.@server[0].ipaddr)
++    mask=$(uci get ipsec.@server[0].netmask)
++    maskbits=$(network_maskbits $mask)
++
++    iptables -I zone_wan_input 2 -p udp -m udp --dport 500 -m comment --comment '!fw3: ipsec' -j ACCEPT
++    iptables -I zone_wan_input 2 -p udp -m udp --dport 4500 -m comment --comment '!fw3: ipsec' -j ACCEPT
++
++    iptables -A forwarding_rule -s ${ipaddr}/${maskbits} -m policy --dir in --pol ipsec --proto esp -m comment --comment '!fw3: ipsec' -j ACCEPT
++    iptables -A forwarding_rule -d ${ipaddr}/${maskbits} -m policy --dir out --pol ipsec --proto esp -m comment --comment '!fw3: ipsec' -j ACCEPT
++    iptables -A input_wan_rule -s ${ipaddr}/${maskbits} -m policy --dir in --pol ipsec --proto esp -m comment --comment '!fw3: ipsec' -j ACCEPT
++
++    iptables -t mangle -A FORWARD -s ${ipaddr}/${maskbits} -o $ifwan -p tcp -m policy --dir in --pol ipsec -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360 -m comment --comment '!fw3: ipsec'
++    [ -f "/tmp/ip_no_pmtu_disc.ipsec" ] || cat /proc/sys/net/ipv4/ip_no_pmtu_disc >/tmp/ip_no_pmtu_disc.ipsec
++    echo 1 >/proc/sys/net/ipv4/ip_no_pmtu_disc
++}
++
++[ $(uci get ipsec.@server[0].enabled) = "1" ] || {
++    if [ -f "/tmp/ip_no_pmtu_disc.ipsec" ]; then
++	cat /tmp/ip_no_pmtu_disc.ipsec >/proc/sys/net/ipv4/ip_no_pmtu_disc
++	rm /tmp/ip_no_pmtu_disc.ipsec
++    else
++	echo 0 >/proc/sys/net/ipv4/ip_no_pmtu_disc
++    fi
++}
++
++iptables -t mangle -F ipsec_prerouting_rule >/dev/null 2>&1 || iptables -t mangle -N ipsec_prerouting_rule
++iptables -t mangle -C PREROUTING -j ipsec_prerouting_rule 2>/dev/null || {
++    iptables -t mangle -A PREROUTING -j ipsec_prerouting_rule
++}
++
++zones=`uci show firewall | sed -n s'/=zone//gp'`
++for zone in $zones; do
++    name=`uci -q get ${zone}.name`
++    case "$name" in
++	wan)
++	    ;;
++	vpn*)
++	    ;;
++	wg*)
++	    ;;
++	*)
++	    nets="$nets $name"
++	    ;;
++    esac
++done
++
++client_up=0
++vip=$(ip rule | sed -r -n s'/.*from ([0-9.]*) lookup 220\b.*/\1/p')
++[ -n "$vip" ] && client_up=1
++
++ifaces=$(uci show vpn-ifaces | sed -n s'/=vpn-iface//gp')
++for iface in $ifaces; do
++    name=$(uci -q get ${iface}.vpn)
++    if [ "$name" = "ipsec" ]; then
++	localifs="$localifs $(uci -q get ${iface}.iface)"
++    fi
++done
++localifs=$(echo $localifs)
++
++if [ -n "$localifs" ]; then
++    for net in $nets; do
++	network_get_device iface $net
++	case "$localifs" in
++	    *${net}*)
++	    iptables -t mangle -A ipsec_prerouting_rule -i $iface -j MARK --set-mark 0x20/0x20
++	    ;;
++	esac
++	[ $client_up -eq 1 ] && {
++	    iptables -t mangle -A FORWARD -o $iface -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360 -m comment --comment '!fw3: ipsec'
++	}
++    done
++fi
++
++if [ $client_up -eq 1 ]; then
++    iptables -t mangle -A FORWARD -m mark --mark 0x20/0x20 -o $ifwan -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360 -m comment --comment '!fw3: ipsec'
++    iptables -t mangle -I OUTPUT -s $vip -o $ifwan -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360 -m comment --comment '!fw3: ipsec'
++    iptables -t nat -I postrouting_rule -o $ifwan -m mark --mark 0x20 -j SNAT --to-source $vip -m comment --comment '!fw3: ipsec'
++    iptables -t nat -I postrouting_rule -m policy --dir out --pol ipsec -j ACCEPT -m comment --comment '!fw3: ipsec'
++    iptables -t nat -I postrouting_rule -s $wanip -j RETURN -m comment --comment '!fw3: ipsec'
++    iptables -A forwarding_rule -m mark --mark 0x20/0x20 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT -m comment --comment '!fw3: ipsec'
++
++    ip route flush table 220
++    dr=$(ip route show table main | grep -E '^default')
++    [ -n "$dr" ] && ip route add table 220 $dr src $vip
++    ip route show table main | grep -E -v '^(0.0.0.0|128.0.0.0|default)' | while read ROUTE; do
++	ip route add table 220 $ROUTE
++    done
++
++    ips=$(network_get_vpnuser_ip ipsec)
++else
++    ip route flush table 220
++    ip route add table 220 default via 127.0.0.1
++    ip route show table main | grep -E -v '^(0.0.0.0|128.0.0.0|default)' | grep -v "dev $ifwan" | while read ROUTE; do
++	ip route add table 220 $ROUTE
++    done
++
++    ips=$(network_get_vpnuser_ip)
++fi
++
++for ip in $ips; do
++    iptables -t mangle -A ipsec_prerouting_rule -s $ip -j MARK --set-mark 0x20/0x20
++done
+diff --git a/net/strongswan/files/gen-client-cert.sh b/net/strongswan/files/gen-client-cert.sh
+new file mode 100644
+index 000000000..58e380590
+--- /dev/null
++++ b/net/strongswan/files/gen-client-cert.sh
+@@ -0,0 +1,7 @@
++#!/bin/sh
++while [ -n "$1" ]; do
++    ipsec pki --gen --outform pem > /etc/ipsec.d/private/user@$1.pem && \
++    ipsec pki --pub --in /etc/ipsec.d/private/user@$1.pem | ipsec pki --issue --cacert /etc/ipsec.d/cacerts/pcwrt-root-ca.pem --cakey /etc/ipsec.d/private/pcwrt-root-ca.pem --dn "C=US, O=pcwrt.com, CN=$1" --san="$1" --outform pem > /etc/ipsec.d/certs/user@$1.pem
++    shift
++done
++/etc/init.d/ipsec restart
+diff --git a/net/strongswan/files/gen-server-keys.sh b/net/strongswan/files/gen-server-keys.sh
+new file mode 100644
+index 000000000..5b8693348
+--- /dev/null
++++ b/net/strongswan/files/gen-server-keys.sh
+@@ -0,0 +1,29 @@
++#!/bin/sh
++. /lib/functions.sh
++
++add_user() {
++    local name
++    config_get name "$1" name
++    users="${users} ${name}"
++}
++
++set_server_name() {
++    config_get extaddr "$1" extaddr
++}
++
++rm /etc/ipsec.d/private/pcwrt-root-ca.pem
++rm /etc/ipsec.d/cacerts/pcwrt-root-ca.pem
++rm /etc/ipsec.d/private/pcwrt-strongswan-server.pem
++rm /etc/ipsec.d/certs/pcwrt-strongswan-server.pem
++rm /etc/ipsec.d/private/user@*
++rm /etc/ipsec.d/certs/user@*
++
++config_load ipsec
++config_foreach add_user user
++config_foreach set_server_name server
++
++ipsec pki --gen --outform pem >/etc/ipsec.d/private/pcwrt-root-ca.pem && \
++ipsec pki --self --in /etc/ipsec.d/private/pcwrt-root-ca.pem --dn "C=US, O=pcwrt.com, CN=pcWRT IPsec CA" --ca --outform pem >/etc/ipsec.d/cacerts/pcwrt-root-ca.pem && \
++ipsec pki --gen --outform pem >/etc/ipsec.d/private/pcwrt-strongswan-server.pem && \
++ipsec pki --pub --in /etc/ipsec.d/private/pcwrt-strongswan-server.pem | ipsec pki --issue --cacert /etc/ipsec.d/cacerts/pcwrt-root-ca.pem --cakey /etc/ipsec.d/private/pcwrt-root-ca.pem --dn "C=US, O=pcwrt.com, CN=pcWRT strongSwan server" --san dns:"$extaddr" --flag serverAuth --flag ikeIntermediate --outform pem >/etc/ipsec.d/certs/pcwrt-strongswan-server.pem
++/usr/share/ipsec/gen-client-cert.sh ${users}
+diff --git a/net/strongswan/files/ipsec.config b/net/strongswan/files/ipsec.config
+new file mode 100644
+index 000000000..06f1c704f
+--- /dev/null
++++ b/net/strongswan/files/ipsec.config
+@@ -0,0 +1,5 @@
++config server
++    option enabled '0'
++    option ipaddr '10.115.0.0'
++    option netmask '255.255.255.0'
++    list nets 'lan'
+diff --git a/net/strongswan/files/ipsec.init b/net/strongswan/files/ipsec.init
+index bbfa573d6..29424d8d5 100644
+--- a/net/strongswan/files/ipsec.init
++++ b/net/strongswan/files/ipsec.init
+@@ -1,372 +1,312 @@
+ #!/bin/sh /etc/rc.common
+-
+ START=90
+ STOP=10
+ 
+ USE_PROCD=1
+ PROG=/usr/lib/ipsec/starter
+ 
+-. $IPKG_INSTROOT/lib/functions.sh
+-. $IPKG_INSTROOT/lib/functions/network.sh
+-
+-IPSEC_SECRETS_FILE=/etc/ipsec.secrets
+-IPSEC_CONN_FILE=/etc/ipsec.conf
+-STRONGSWAN_CONF_FILE=/etc/strongswan.conf
++. /lib/functions/network.sh
+ 
+ IPSEC_VAR_SECRETS_FILE=/var/ipsec/ipsec.secrets
+-IPSEC_VAR_CONN_FILE=/var/ipsec/ipsec.conf
+-STRONGSWAN_VAR_CONF_FILE=/var/ipsec/strongswan.conf
+-
+-WAIT_FOR_INTF=0
+-
+-file_reset() {
+-	: > "$1"
++IPSEC_VAR_CONF_FILE=/var/ipsec/ipsec.conf
++IPSEC_CONN_FILE=/var/ipsec/ipsec.conn
++IPSEC_LOG_FILE=/var/ipsec/ipsec.conn.log
++IPSEC=ipsec
++PROTO=
++ADDUSR=
++
++prepare_default() {
++    local ipaddr=$(uci -q get $IPSEC.@server[0].ipaddr)
++    local netmask=$(uci -q get $IPSEC.@server[0].netmask)
++    local psk=$(uci -q get $IPSEC.@server[0].psk)
++    local extaddr=$(uci -q get $IPSEC.@server[0].extaddr)
++    local svron=$(uci -q get $IPSEC.@server[0].enabled)
++    local lanip
++    config_load network
++    config_get lanip lan ipaddr
++
++    cat > $IPSEC_VAR_CONF_FILE << EOF
++config setup
++
++conn %default
++    ikelifetime=60m
++    keylife=20m
++    rekeymargin=3m
++    keyingtries=1
++    rekey=no
++    compress=no
++    fragmentation=yes
++    forceencaps=yes
++    dpdaction=clear
++    dpddelay=300s
++    ike=aes256gcm16-sha384-modp3072,aes256-sha256-modp2048,aes256-sha256-modp1024,aes256-sha1-modp1024,aes128-sha1-modp1024,3des-sha1-modp1024!
++    esp=aes256gcm16-sha384,aes256-sha256,aes256-sha1,aes128-sha1,3des-sha1!
++    auto=add
++
++EOF
++
++echo -n > $IPSEC_VAR_SECRETS_FILE
++
++[ "$svron" = "1" -a -n "$ipaddr" -a -n "$netmask" -a -n "$extaddr" ] && {
++    ADDUSR=1
++    echo ": RSA pcwrt-strongswan-server.pem" >> $IPSEC_VAR_SECRETS_FILE
++    [ -n "$psk" ] && {
++	echo "$extaddr %any : PSK 0s"$(echo -n $psk | base64) >> $IPSEC_VAR_SECRETS_FILE
++    }
++
++    cat >> $IPSEC_VAR_CONF_FILE << EOF
++conn server
++    left=%any
++    leftsubnet=0.0.0.0/0
++    rightdns=${lanip}
++    right=%any
++
++conn ikev1-server
++    also=server
++    keyexchange=ikev1
++    leftauth=psk
++    leftid=$extaddr
++    rightauth=psk
++    rightauth2=xauth
++    rightsourceip=${ipaddr}/$(network_maskbits ${netmask})
++
++conn ikev2-server
++    also=server
++    keyexchange=ikev2
++    leftauth=pubkey
++    leftcert=pcwrt-strongswan-server.pem
++    leftsendcert=always
++    rightauth=pubkey
++
++EOF
+ }
+ 
+-xappend() {
+-	local file="$1"
+-	shift
+-
+-	echo "$@" >> "$file"
++    cat >> $IPSEC_VAR_CONF_FILE << EOF
++conn client
++    leftsourceip=%config
++    leftfirewall=yes
++    rightsubnet=0.0.0.0/0
++
++conn ikev1-client
++    also=client
++    keyexchange=ikev1
++    leftauth=psk
++    leftauth2=xauth
++    rightauth=psk
++
++conn ikev2-client
++    also=client
++    keyexchange=ikev2
++    rightauth=pubkey
++    rightid=%any
++
++EOF
+ }
+ 
+-ipsec_reset() {
+-	file_reset "$IPSEC_VAR_CONN_FILE"
+-}
++add_auth() {
++    local name ikev psk username password
+ 
+-ipsec_xappend() {
+-	xappend "$IPSEC_VAR_CONN_FILE" "$@"
+-}
++    config_get name "$1" name
++    config_get ikev "$1" type
++    config_get psk "$1" psk
++    config_get username "$1" username
++    config_get password "$1" password
+ 
+-swan_reset() {
+-	file_reset "$STRONGSWAN_VAR_CONF_FILE"
+-}
++    name=$(echo "$name" | sed 's/[^0-9A-Za-z]/_/g')
+ 
+-swan_xappend() {
+-	xappend "$STRONGSWAN_VAR_CONF_FILE" "$@"
+-}
++    [ -n "$ikev" ] && {
++	eval ${name}___ikev=$(set | sed -n 's/^ikev=//gp')
++    }
+ 
+-secret_reset() {
+-	file_reset "$IPSEC_VAR_SECRETS_FILE"
+-}
+-
+-secret_xappend() {
+-	xappend "$IPSEC_VAR_SECRETS_FILE" "$@"
+-}
+-
+-warning() {
+-	echo "WARNING: $@" >&2
+-}
+-
+-add_crypto_proposal() {
+-	local encryption_algorithm
+-	local hash_algorithm
+-	local dh_group
++    [ -n "$psk" ] && {
++	eval ${name}___psk=$(echo -n $psk | base64)
++    }
+ 
+-	config_get encryption_algorithm  "$1" encryption_algorithm
+-	config_get hash_algorithm        "$1" hash_algorithm
+-	config_get dh_group              "$1" dh_group
+-
+-	[ -n "${encryption_algorithm}" ] && \
+-		crypto="${crypto:+${crypto},}${encryption_algorithm}${hash_algorithm:+-${hash_algorithm}}${dh_group:+-${dh_group}}"
++    [ -n "$username" -a -n "$password" ] && {
++	eval ${name}___username=$(set | sed -n 's/^username=//gp')
++	eval ${name}___password=$(echo -n $password | base64)
++    }
+ }
+ 
+-set_crypto_proposal() {
+-	local conf="$1"
+-	local proposal
+-
+-	crypto=""
++add_user() {
++    local ikev name password ip
++    config_get ikev "$1" type
++    config_get name "$1" name
++    config_get ip "$1" ip
+ 
+-	config_get crypto_proposal "$conf" crypto_proposal ""
+-	for proposal in $crypto_proposal; do
+-		add_crypto_proposal "$proposal"
+-	done
+-
+-	[ -n "${crypto}" ] && {
+-		local force_crypto_proposal
+-
+-		config_get_bool force_crypto_proposal "$conf" force_crypto_proposal
+-
+-		[ "${force_crypto_proposal}" = "1" ] && crypto="${crypto}!"
+-	}
+-
+-	crypto_proposal="${crypto}"
+-}
+-
+-config_conn() {
+-	# Generic ipsec conn section shared by tunnel and transport
+-	local mode
+-	local local_subnet
+-	local local_nat
+-	local local_sourceip
+-	local local_leftip
+-	local local_updown
+-	local local_firewall
+-	local remote_subnet
+-	local remote_sourceip
+-	local remote_updown
+-	local remote_firewall
+-	local ikelifetime
+-	local lifetime
+-	local margintime
+-	local keyingtries
+-	local dpdaction
+-	local dpddelay
+-	local inactivity
+-	local keyexchange
+-	local reqid
+-	local packet_marker
+-
+-	config_get mode                     "$1"           mode "route"
+-	config_get local_subnet             "$1"           local_subnet ""
+-	config_get local_nat                "$1"           local_nat ""
+-	config_get local_sourceip           "$1"           local_sourceip ""
+-	config_get local_leftip             "$1"           local_leftip "%any"
+-	config_get local_updown             "$1"           local_updown ""
+-	config_get local_firewall           "$1"           local_firewall ""
+-	config_get remote_subnet            "$1"           remote_subnet ""
+-	config_get remote_sourceip          "$1"           remote_sourceip ""
+-	config_get remote_updown            "$1"           remote_updown ""
+-	config_get remote_firewall          "$1"           remote_firewall ""
+-	config_get ikelifetime              "$1"           ikelifetime "3h"
+-	config_get lifetime                 "$1"           lifetime "1h"
+-	config_get margintime               "$1"           margintime "9m"
+-	config_get keyingtries              "$1"           keyingtries "3"
+-	config_get dpdaction                "$1"           dpdaction "none"
+-	config_get dpddelay                 "$1"           dpddelay "30s"
+-	config_get inactivity               "$1"           inactivity
+-	config_get keyexchange              "$1"           keyexchange "ikev2"
+-	config_get reqid                    "$1"           reqid
+-	config_get packet_marker            "$1"           packet_marker
+-
+-	[ -n "$local_nat" ] && local_subnet=$local_nat
+-
+-	ipsec_xappend "conn $config_name-$1"
+-	ipsec_xappend "  left=$local_leftip"
+-	ipsec_xappend "  right=$remote_gateway"
+-
+-	[ -n "$local_sourceip" ] && ipsec_xappend "  leftsourceip=$local_sourceip"
+-	[ -n "$local_subnet" ] && ipsec_xappend "  leftsubnet=$local_subnet"
+-
+-	[ -n "$local_firewall" ] && ipsec_xappend "  leftfirewall=$local_firewall"
+-	[ -n "$remote_firewall" ] && ipsec_xappend "  rightfirewall=$remote_firewall"
+-
+-	ipsec_xappend "  ikelifetime=$ikelifetime"
+-	ipsec_xappend "  lifetime=$lifetime"
+-	ipsec_xappend "  margintime=$margintime"
+-	ipsec_xappend "  keyingtries=$keyingtries"
+-	ipsec_xappend "  dpdaction=$dpdaction"
+-	ipsec_xappend "  dpddelay=$dpddelay"
+-
+-	[ -n "$inactivity" ] && ipsec_xappend "  inactivity=$inactivity"
+-	[ -n "$reqid" ] && ipsec_xappend "  reqid=$reqid"
+-
+-	if [ "$auth_method" = "psk" ]; then
+-		ipsec_xappend "  leftauth=psk"
+-		ipsec_xappend "  rightauth=psk"
+-
+-		[ "$remote_sourceip" != "" ] && ipsec_xappend "  rightsourceip=$remote_sourceip"
+-		[ "$remote_subnet" != "" ] && ipsec_xappend "  rightsubnet=$remote_subnet"
+-
+-		ipsec_xappend "  auto=$mode"
++    [ -n "$name" -a -n "$ip" ] && {
++	if [ "$ikev" = "ikev1" ]; then
++	    config_get password "$1" password
++	    echo "$name %any : XAUTH 0s"$(echo -n $password | base64) >> $IPSEC_VAR_SECRETS_FILE
+ 	else
+-		warning "AuthenticationMethod $auth_method not supported"
++	    name=$(echo "$name" | sed 's/[^0-9A-Za-z.]/-/g')
++	    echo "conn user@${name}" >> $IPSEC_VAR_CONF_FILE
++	    echo -e "    also=ikev2-server\n    rightcert=user@${name}.pem\n    rightsourceip=${ip}\n" >> $IPSEC_VAR_CONF_FILE
+ 	fi
+-
+-	[ -n "$local_identifier" ] && ipsec_xappend "  leftid=$local_identifier"
+-	[ -n "$remote_identifier" ] && ipsec_xappend "  rightid=$remote_identifier"
+-	[ -n "$local_updown" ] && ipsec_xappend "  leftupdown=$local_updown"
+-	[ -n "$remote_updown" ] && ipsec_xappend "  rightupdown=$remote_updown"
+-	[ -n "$packet_marker" ] && ipsec_xappend "  mark=$packet_marker"
+-	ipsec_xappend "  keyexchange=$keyexchange"
+-
+-	set_crypto_proposal "$1"
+-	[ -n "${crypto_proposal}" ] && ipsec_xappend "  esp=$crypto_proposal"
+-	[ -n "${ike_proposal}" ] && ipsec_xappend "  ike=$ike_proposal"
+-}
+-
+-config_tunnel() {
+-	config_conn "$1"
+-
+-	# Specific for the tunnel part
+-	ipsec_xappend "  type=tunnel"
++    }
+ }
+ 
+-config_transport() {
+-	config_conn "$1"
++add_conn() {
++    local name host authconfig ac conn proto
++    local ikev psk uname pass connname
++
++    config_get name "$1" name
++    [ -z "$name" ] && return
++
++    config_get host "$1" host
++    [ -z "$host" ] && config_get host "$1" svrhost
++    config_get authconfig "$1" authconfig
++    config_get proto "$1" proto
++
++    conn=$2
++    connname=conn@$(echo "$name" | sed 's/[^0-9A-Za-z.]/-/g')
++    [ "$proto" = "$PROTO" -a "$conn" = "$connname" -a -n "$host" ] && {
++	if [ -n "$authconfig" ]; then
++	    ac=$(echo "$authconfig" | sed 's/[^0-9A-Za-z]/_/g')
++	    ikev=$(eval echo -n \$${ac}___ikev)
++	    uname=$(eval echo -n \$${ac}___username)
++	    pass=$(eval echo -n \$${ac}___password)
++	    psk=$(eval echo -n \$${ac}___psk)
++	    authconfig=$(echo "$authconfig" | sed 's/[^0-9A-Za-z.]/-/g')
++	else
++	    config_get ikev $1 ipsectype
++	    config_get uname $1 username
++	    config_get pass $1 password
++	    [ -n "$pass" ] && pass=$(echo -n $pass | base64)
++	    config_get psk $1 psk
++	    [ -n "$psk" ] && psk=$(echo -n $psk | base64)
++	    authconfig=$(echo "$name" | sed 's/[^0-9A-Za-z.]/-/g')
++	fi
+ 
+-	# Specific for the transport part
+-	ipsec_xappend "  type=transport"
++	if [ "$ikev" = "ikev1" ]; then
++	    echo -e "conn ${connname}\n    also=ikev1-client\n    leftid=${uname}\n    right=${host}\n" >> $IPSEC_VAR_CONF_FILE
++	    echo -e "@${host} : PSK 0s$psk" >> $IPSEC_VAR_SECRETS_FILE
++	    echo -e "${uname} @${host} : XAUTH 0s$pass" >> $IPSEC_VAR_SECRETS_FILE
++	else
++	    echo -e "conn ${connname}\n    also=ikev2-client\n    right=${host}" >> $IPSEC_VAR_CONF_FILE
++	    if [ -f "/etc/ipsec.d/certs/conn@${authconfig}_server.pem" ]; then
++		echo "    rightcert=conn@${authconfig}_server.pem" >> $IPSEC_VAR_CONF_FILE
++	    fi
++
++	    local la
++	    if [ -f "/etc/ipsec.d/private/conn@${authconfig}_client.pem" -a -f "/etc/ipsec.d/certs/conn@${authconfig}_client.pem" ]; then
++		echo -e "    leftauth=pubkey\n    leftcert=conn@${authconfig}_client.pem" >> $IPSEC_VAR_CONF_FILE
++		grep ": RSA conn@${authconfig}_client.pem" $IPSEC_VAR_SECRETS_FILE >/dev/null 2>&1 || echo ": RSA conn@${authconfig}_client.pem" >> $IPSEC_VAR_SECRETS_FILE
++		la=2
++	    fi
++
++	    if [ -n "$uname" -a -n "$pass" ]; then
++		echo -e "    leftauth${la}=eap-mschapv2\n    eap_identity=${uname}\n" >> $IPSEC_VAR_CONF_FILE
++		grep "$uname %any : EAP 0s$pass" $IPSEC_VAR_SECRETS_FILE >/dev/null 2>&1 || echo "$uname %any : EAP 0s$pass" >> $IPSEC_VAR_SECRETS_FILE
++	    fi
++	fi
++    }
+ }
+ 
+-config_remote() {
+-	local enabled
+-	local gateway
+-	local pre_shared_key
+-	local auth_method
+-
+-	config_name=$1
+-
+-	config_get_bool enabled "$1" enabled 0
+-	[ $enabled -eq 0 ] && return
+-
+-	config_get gateway           "$1" gateway
+-	config_get pre_shared_key    "$1" pre_shared_key
+-	config_get auth_method       "$1" authentication_method
+-	config_get local_identifier  "$1" local_identifier ""
+-	config_get remote_identifier "$1" remote_identifier ""
+-
+-	[ "$gateway" = "any" ] && remote_gateway="%any" || remote_gateway="$gateway"
+-
+-	[ -z "$local_identifier" ] && {
+-		local ipdest
+-
+-		[ "$remote_gateway" = "%any" ] && ipdest="1.1.1.1" || ipdest="$remote_gateway"
+-		local_gateway=$(ip -o route get "$ipdest" | awk '/ src / { print gensub(/^.* src ([^ ]*) .*$/, "\\1", "g"); }')
++auto_start() {
++    local name proto autostart
++
++    config_get proto "$1" proto
++    config_get autostart "$1" autostart
++
++    [ "$proto" = "$PROTO" -a "$autostart" = "1" ] && {
++	[ -s '/etc/config/vpn' ] && {
++	    touch /var/run/vpn-ifaces
++	    uci -c /var/run batch <<-EOF
++	    delete vpn-ifaces.@vpn-iface[0]
++	    add vpn-ifaces vpn-iface
++	    set vpn-ifaces.@vpn-iface[0].iface=x1
++	    set vpn-ifaces.@vpn-iface[0].vpn=ipsec
++	    commit vpn-ifaces
++EOF
+ 	}
+ 
+-	[ -n "$local_identifier" ] && secret_xappend -n "$local_identifier " || secret_xappend -n "$local_gateway "
+-	[ -n "$remote_identifier" ] && secret_xappend -n "$remote_identifier " || secret_xappend -n "$remote_gateway "
+-
+-	secret_xappend ": PSK \"$pre_shared_key\""
+-
+-	set_crypto_proposal "$1"
+-	ike_proposal="$crypto_proposal"
+-
+-	config_list_foreach "$1" tunnel config_tunnel
+-
+-	config_list_foreach "$1" transport config_transport
+-
+-	ipsec_xappend ""
+-}
+-
+-do_preamble() {
+-	ipsec_xappend "# generated by /etc/init.d/ipsec"
+-	ipsec_xappend "version 2"
+-	ipsec_xappend ""
+-
+-	secret_xappend "# generated by /etc/init.d/ipsec"
+-}
+-
+-config_ipsec() {
+-	local debug
+-	local rtinstall_enabled
+-	local routing_tables_ignored
+-	local routing_table
+-	local routing_table_id
+-	local interface
+-	local device_list
+-
+-	ipsec_reset
+-	secret_reset
+-	swan_reset
+-
+-	do_preamble
+-
+-	config_get debug "$1" debug 0
+-	config_get_bool rtinstall_enabled "$1" rtinstall_enabled 1
+-	[ $rtinstall_enabled -eq 1 ] && install_routes=yes || install_routes=no
+-
+-	# prepare extra charon config option ignore_routing_tables
+-	for routing_table in $(config_get "$1" "ignore_routing_tables"); do
+-		if [ "$routing_table" -ge 0 ] 2>/dev/null; then
+-			routing_table_id=$routing_table
+-		else
+-			routing_table_id=$(sed -n '/[ \t]*[0-9]\+[ \t]\+'$routing_table'[ \t]*$/s/[ \t]*\([0-9]\+\).*/\1/p' /etc/iproute2/rt_tables)
+-		fi
+-
+-		[ -n "$routing_table_id" ] && append routing_tables_ignored "$routing_table_id"
+-	done
+-
+-	local interface_list=$(config_get "$1" "interface")
+-	if [ -z "$interface_list" ]; then
+-		WAIT_FOR_INTF=0
+-	else
+-		for interface in $interface_list; do
+-			network_get_device device $interface
+-			[ -n "$device" ] && append device_list "$device" ","
+-		done
+-		[ -n "$device_list" ] && WAIT_FOR_INTF=0 || WAIT_FOR_INTF=1
+-	fi
+-
+-	swan_xappend "# generated by /etc/init.d/ipsec"
+-	swan_xappend "charon {"
+-	swan_xappend "  load_modular = yes"
+-	swan_xappend "  install_routes = $install_routes"
+-	[ -n "$routing_tables_ignored" ] && swan_xappend "  ignore_routing_tables = $routing_tables_ignored"
+-	[ -n "$device_list" ] && swan_xappend "  interfaces_use = $device_list"
+-	swan_xappend "    plugins {"
+-	swan_xappend "      include /etc/strongswan.d/charon/*.conf"
+-	swan_xappend "    }"
+-	swan_xappend "  syslog {"
+-	swan_xappend "    identifier = ipsec"
+-	swan_xappend "    daemon {"
+-	swan_xappend "      default = $debug"
+-	swan_xappend "    }"
+-	swan_xappend "  }"
+-	swan_xappend "}"
++	config_get name "$1" name
++	name=$(echo "$name" | sed 's/[^0-9A-Za-z.]/-/g')
++	echo "conn@${name}" > $IPSEC_CONN_FILE
++	return 1
++    }
+ }
+ 
+ prepare_env() {
+-	mkdir -p /var/ipsec
+-	config_load ipsec
+-	config_foreach config_ipsec ipsec
+-	config_foreach config_remote remote
+-}
+-
+-service_running() {
+-	ipsec status > /dev/null 2>&1
++    prepare_default
++    config_load $IPSEC
++    config_foreach add_auth authconfig
++    [ "$ADDUSR" = 1 ] && config_foreach add_user user
++
++    if [ -s "$IPSEC_CONN_FILE" ]; then
++	conn=$(cat $IPSEC_CONN_FILE 2>/dev/null)
++	config_foreach add_conn conn $conn
++    fi
+ }
+ 
+ reload_service() {
+-	running && {
+-		prepare_env
+-		[ $WAIT_FOR_INTF -eq 0 ] && {
+-			ipsec rereadall
+-			ipsec reload
+-			return
+-		}
+-	}
+-
+-	start
++    restart
+ }
+ 
+ stop_service() {
+-	ipsec_reset
+-	swan_reset
+-	secret_reset
++    ipsec stop >/dev/null 2>&1
+ }
+ 
+-check_ipsec_interface() {
+-	local intf
+-
+-	for intf in $(config_get "$1" interface); do
+-		procd_add_interface_trigger "interface.*" "$intf" /etc/init.d/ipsec reload
++service_running() {
++    local conn
++
++    echo "ipsec started" >$IPSEC_LOG_FILE
++    if [ -s "$IPSEC_CONN_FILE" ]; then
++	conn=$(cat $IPSEC_CONN_FILE 2>/dev/null)
++	for i in 1 2 3 4 5; do
++	    sleep 2
++	    ipsec status | grep $conn >/dev/null 2>&1 && {
++		break
++	    } || {
++		echo "starting connection $conn" >>$IPSEC_LOG_FILE
++		ipsec up $conn
++	    }
+ 	done
++    fi
+ }
+ 
+ service_triggers() {
+-	procd_add_reload_trigger "ipsec"
+-	config load "ipsec"
+-	config_foreach check_ipsec_interface ipsec
++    procd_add_reload_trigger "ipsec"
+ }
+ 
+ start_service() {
+-	prepare_env
+-
+-	[ $WAIT_FOR_INTF -eq 1 ] && return
+-
+-	procd_open_instance
+-
+-	procd_set_param command $PROG --daemon charon --nofork
++    [ -s '/etc/config/vpn' ] && {
++	IPSEC=vpn
++	PROTO=ipsec
++    }
++
++    /sbin/ifstatus wan | grep '\"up\": true' >/dev/null 2>&1 || return
++
++    network_get_device ifwan wan
++    if [ -n "$ifwan" ]; then
++	grep "interfaces_use = $ifwan," /etc/strongswan.d/charon.conf >/dev/null 2>&1 || {
++	    if [ -L "/etc/strongswan.d/charon.conf" -a -s /etc/strongswan.d/charon-tmpl.conf ]; then
++		sed "s#interfaces_use = .*#interfaces_use = $ifwan,tun1,wg1#" /etc/strongswan.d/charon-tmpl.conf \
++		    > /etc/strongswan.d/charon.conf
++	    else
++		sed -i "s#interfaces_use = .*#interfaces_use = $ifwan,tun1,wg1#" /etc/strongswan.d/charon.conf
++	    fi
++	}
++    fi
+ 
+-	procd_set_param file $IPSEC_CONN_FILE
+-	procd_append_param file $IPSEC_SECRETS_FILE
+-	procd_append_param file $STRONGSWAN_CONF_FILE
+-	procd_append_param file /etc/strongswan.d/*.conf
+-	procd_append_param file /etc/strongswan.d/charon/*.conf
++    prepare_env
+ 
+-	procd_set_param respawn
++    procd_open_instance
++    procd_set_param command $PROG --daemon charon --nofork
++    procd_set_param file $IPSEC_VAR_CONF_FILE
++    procd_append_param file $IPSEC_VAR_SECRETS_FILE
++    procd_set_param respawn 3600 30 5
++    procd_close_instance
++}
+ 
+-	procd_close_instance
++boot() {
++    mkdir -p /var/ipsec
++    [ -s '/etc/config/vpn' ] && {
++	IPSEC=vpn
++	PROTO=ipsec
++    }
++    config_load $IPSEC
++    config_foreach auto_start conn
++    start
+ }
+diff --git a/net/strongswan/files/ipsec.uci-default b/net/strongswan/files/ipsec.uci-default
+new file mode 100644
+index 000000000..11bd84b4a
+--- /dev/null
++++ b/net/strongswan/files/ipsec.uci-default
+@@ -0,0 +1,19 @@
++#!/bin/sh
++uci -q batch <<-EOT
++    delete firewall.ipsec
++    set firewall.ipsec=include
++    set firewall.ipsec.type=script
++    set firewall.ipsec.path=/usr/share/ipsec/firewall.include
++    set firewall.ipsec.family=any
++    set firewall.ipsec.reload=1
++    commit firewall
++EOT
++
++grep "config ipsec" /etc/config/ucitrack || {
++    uci add ucitrack ipsec
++    uci set ucitrack.@ipsec[0].init=ipsec
++    uci add_list ucitrack.@ipsec[0].affects=firewall
++    uci -q commit ucitrack
++}
++
++exit 0
+diff --git a/net/strongswan/files/pki.conf b/net/strongswan/files/pki.conf
+new file mode 100644
+index 000000000..f64a091a5
+--- /dev/null
++++ b/net/strongswan/files/pki.conf
+@@ -0,0 +1,7 @@
++pki {
++
++    # Plugins to load in ipsec pki tool.
++    # load =
++
++}
++
+diff --git a/net/strongswan/patches/300-include-ipsec-hotplug.patch b/net/strongswan/patches/300-include-ipsec-hotplug.patch
+index a61da3a48..56dae3200 100644
+--- a/net/strongswan/patches/300-include-ipsec-hotplug.patch
++++ b/net/strongswan/patches/300-include-ipsec-hotplug.patch
+@@ -1,6 +1,6 @@
+ --- a/src/_updown/_updown.in
+ +++ b/src/_updown/_updown.in
+-@@ -22,6 +22,13 @@
++@@ -22,6 +22,14 @@
+  # that, and use the (left/right)updown parameters in ipsec.conf to make
+  # strongSwan use yours instead of this default one.
+  
+@@ -10,6 +10,7 @@
+ +# ipsec events.
+ +
+ +/sbin/hotplug-call ipsec "$1"
+++exit 0
+ +
+  #      PLUTO_VERSION
+  #              indicates  what  version of this interface is being
+diff --git a/net/strongswan/patches/900-add-resolv-conf-file.patch b/net/strongswan/patches/900-add-resolv-conf-file.patch
+new file mode 100644
+index 000000000..a57c6ac61
+--- /dev/null
++++ b/net/strongswan/patches/900-add-resolv-conf-file.patch
+@@ -0,0 +1,11 @@
++--- a/conf/plugins/resolve.conf
+++++ b/conf/plugins/resolve.conf
++@@ -1,7 +1,7 @@
++ resolve {
++ 
++     # File where to add DNS server entries.
++-    # file = /etc/resolv.conf
+++    file = /tmp/resolv.conf.ipsec
++ 
++     # Whether to load the plugin. Can also be an integer to increase the
++     # priority of this plugin.
+diff --git a/net/strongswan/patches/910-disable-ip-rule-creation.patch b/net/strongswan/patches/910-disable-ip-rule-creation.patch
+new file mode 100644
+index 000000000..b025d65ca
+--- /dev/null
++++ b/net/strongswan/patches/910-disable-ip-rule-creation.patch
+@@ -0,0 +1,12 @@
++--- a/src/libcharon/plugins/kernel_netlink/kernel_netlink_net.c
+++++ b/src/libcharon/plugins/kernel_netlink/kernel_netlink_net.c
++@@ -3087,8 +3087,7 @@ kernel_netlink_net_t *kernel_netlink_net
++ 		.lock = rwlock_create(RWLOCK_TYPE_DEFAULT),
++ 		.condvar = rwlock_condvar_create(),
++ 		.roam_lock = spinlock_create(),
++-		.routing_table = lib->settings->get_int(lib->settings,
++-						"%s.routing_table", ROUTING_TABLE, lib->ns),
+++		.routing_table = 0,
++ 		.routing_table_prio = lib->settings->get_int(lib->settings,
++ 						"%s.routing_table_prio", ROUTING_TABLE_PRIO, lib->ns),
++ 		.process_route = lib->settings->get_bool(lib->settings,
+diff --git a/net/strongswan/patches/920-add-ipsec-uci-parser.patch b/net/strongswan/patches/920-add-ipsec-uci-parser.patch
+new file mode 100644
+index 000000000..893ac8ebe
+--- /dev/null
++++ b/net/strongswan/patches/920-add-ipsec-uci-parser.patch
+@@ -0,0 +1,214 @@
++Index: strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/mode_config.c
++===================================================================
++--- strongswan-5.7.2.orig/src/libcharon/sa/ikev1/tasks/mode_config.c
+++++ strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/mode_config.c
++@@ -14,10 +14,16 @@
++  */
++ 
++ #include "mode_config.h"
+++#include "uci-parser.h"
++ 
++ #include <daemon.h>
++ #include <encoding/payloads/cp_payload.h>
++ 
+++struct uci_parser_ctx {
+++    identification_t *id;
+++    char *ip;
+++};
+++
++ typedef struct private_mode_config_t private_mode_config_t;
++ 
++ /**
++@@ -480,6 +486,57 @@ static host_t *assign_migrated_vip(linke
++ 	return found;
++ }
++ 
+++static int ipsec_user_callback(uci_data_type type, const char *name, const char *value, void *ctx) {
+++    static int user_section = 0;
+++    static int ikev1 = 0;
+++    static int user = 0;
+++    static char *ip = NULL;
+++
+++    struct uci_parser_ctx *p = (struct uci_parser_ctx *) ctx;
+++
+++    if (type == SECTION) {
+++	user_section = strcmp("user", name) == 0;
+++	ikev1 = user = 0;
+++	if (ip) {
+++	    free(ip); ip = NULL;
+++	}
+++    }
+++    else if (user_section && type == OPTION && value != NULL) {
+++	if (strcmp("type", name) == 0) {
+++	    ikev1 = strcmp("ikev1", value) == 0;
+++	}
+++	else if (strcmp("name", name) == 0) {
+++	    identification_t *u = identification_create_from_string(value);
+++	    if (u->equals(u, p->id)) user = 1;
+++	    u->destroy(u);
+++	}
+++	else if (strcmp("ip", name) == 0) {
+++	    ip = strdup(value);
+++	}
+++    }
+++
+++    if (ikev1 && user && ip) {
+++	p->ip = ip;
+++	return 0;
+++    }
+++
+++    return 1;
+++}
+++
+++static host_t *get_address_by_id(identification_t *id) {
+++    struct uci_parser_ctx ctx;
+++    ctx.id = id;
+++    ctx.ip = NULL;
+++
+++    parse_uci_config("/etc/config/ipsec", ipsec_user_callback, &ctx);
+++
+++    if (ctx.ip) {
+++	return host_create_from_string(ctx.ip, 0);
+++    }
+++
+++    return NULL;
+++}
+++
++ /**
++  * Build CFG_REPLY message after receiving CFG_REQUEST
++  */
++@@ -509,31 +566,20 @@ static status_t build_reply(private_mode
++ 	this->ike_sa->clear_virtual_ips(this->ike_sa, FALSE);
++ 
++ 	vips = linked_list_create();
++-	enumerator = this->vips->create_enumerator(this->vips);
++-	while (enumerator->enumerate(enumerator, &requested))
++-	{
++-		DBG1(DBG_IKE, "peer requested virtual IP %H", requested);
++ 
++-		found = assign_migrated_vip(migrated, requested);
++-		if (!found)
++-		{
++-			found = charon->attributes->acquire_address(charon->attributes,
++-											pools, this->ike_sa, requested);
++-		}
++-		if (found)
++-		{
++-			DBG1(DBG_IKE, "assigning virtual IP %H to peer '%Y'", found, id);
++-			this->ike_sa->add_virtual_ip(this->ike_sa, FALSE, found);
++-			cp->add_attribute(cp, build_vip(found));
++-			vips->insert_last(vips, found);
++-		}
++-		else
++-		{
++-			DBG1(DBG_IKE, "no virtual IP found for %H requested by '%Y'",
++-				 requested, id);
++-		}
+++	found = get_address_by_id(id);
+++	if (found)
+++	{
+++		DBG1(DBG_IKE, "assigning virtual IP %H to peer '%Y'", found, id);
+++		this->ike_sa->add_virtual_ip(this->ike_sa, FALSE, found);
+++		cp->add_attribute(cp, build_vip(found));
+++		vips->insert_last(vips, found);
+++	}
+++	else
+++	{
+++		DBG1(DBG_IKE, "no virtual IP found for %H requested by '%Y'",
+++			 requested, id);
++ 	}
++-	enumerator->destroy(enumerator);
++ 
++ 	charon->bus->assign_vips(charon->bus, this->ike_sa, TRUE);
++ 
++Index: strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/uci-parser.c
++===================================================================
++--- /dev/null
+++++ strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/uci-parser.c
++@@ -0,0 +1,56 @@
+++#include <stdio.h>
+++#include <stdlib.h>
+++#include <string.h>
+++
+++#include "uci-parser.h"
+++
+++static char* strip_quotes(char *s) {
+++    size_t n;
+++
+++    char *t = s;
+++    if (*t == '\'' || *t == '"') {
+++	t++;
+++	n = strlen(t);
+++	if (n > 0 && (t[n - 1] == '\'' || t[n - 1] == '"')) {
+++	    t[n - 1] = '\0';
+++	}
+++    }
+++    return t;
+++}
+++
+++extern int parse_uci_config(const char *config, uci_callback_t callback, void *ctx) {
+++    char type[50], name[50], value[1024];
+++
+++    int rc = 1;
+++    char *line = 0;
+++    size_t len = 0;
+++    ssize_t read;
+++
+++    FILE *fp = fopen(config, "r");
+++    if (fp == NULL) return 0;
+++
+++    while ((read = getline(&line, &len, fp)) != -1) {
+++	int n = sscanf(line, "%49s %49s %1023[^\n]", type, name, value);
+++	if (n > 1) {
+++	    const char *p = strip_quotes(name);
+++	    const char *v = n > 2 ? strip_quotes(value) : NULL;
+++	    if (strcmp("config", type) == 0) {
+++		rc = callback(SECTION, p, v, ctx);
+++	    }
+++	    else if (strcmp("option", type) == 0) {
+++		rc = callback(OPTION, p, v, ctx);
+++	    }
+++	    else if (strcmp("list", type) == 0) {
+++		rc = callback(OPTION_LIST, p, v, ctx);
+++	    }
+++
+++	    if (!rc) goto bail;
+++	}
+++    }
+++
+++bail:
+++    if (line) free(line);
+++    fclose(fp);
+++
+++    return rc;
+++}
++Index: strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/uci-parser.h
++===================================================================
++--- /dev/null
+++++ strongswan-5.7.2/src/libcharon/sa/ikev1/tasks/uci-parser.h
++@@ -0,0 +1,13 @@
+++#ifndef _PCWRT_UCI_PARSER_H
+++#define _PCWRT_UCI_PARSER_H
+++
+++typedef enum {
+++    SECTION,
+++    OPTION,
+++    OPTION_LIST
+++} uci_data_type;
+++
+++typedef int (*uci_callback_t)(uci_data_type type, const char *name, const char *value, void *ctx);
+++
+++extern int parse_uci_config(const char *config, uci_callback_t callback, void *ctx);
+++#endif
++Index: strongswan-5.7.2/src/libcharon/Makefile.am
++===================================================================
++--- strongswan-5.7.2.orig/src/libcharon/Makefile.am
+++++ strongswan-5.7.2/src/libcharon/Makefile.am
++@@ -136,6 +136,7 @@ sa/ikev1/tasks/isakmp_dpd.c sa/ikev1/tas
++ sa/ikev1/tasks/xauth.c sa/ikev1/tasks/xauth.h \
++ sa/ikev1/tasks/quick_mode.c sa/ikev1/tasks/quick_mode.h \
++ sa/ikev1/tasks/quick_delete.c sa/ikev1/tasks/quick_delete.h \
+++sa/ikev1/tasks/uci-parser.c sa/ikev1/tasks/uci-parser.h \
++ sa/ikev1/tasks/mode_config.c sa/ikev1/tasks/mode_config.h \
++ processing/jobs/dpd_timeout_job.c processing/jobs/dpd_timeout_job.h \
++ processing/jobs/adopt_children_job.c processing/jobs/adopt_children_job.h
+-- 
+2.34.1
+

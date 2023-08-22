@@ -15,7 +15,7 @@ module("luci.pccontroller.apps.ipsec", package.seeall)
 
 ordering = 60
 function display_name()
-    return return nixio.fs.access('/etc/init.d/ipsec', 'x') and i18n.translate('strongSwan (IPsec)') or nil
+    return nixio.fs.access('/etc/init.d/ipsec', 'x') and i18n.translate('strongSwan (IPsec)') or nil
 end
 
 local config = 'ipsec'
