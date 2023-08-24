@@ -1,0 +1,50 @@
+From 383d33e390a4843e60d404216ab1c0e7976e47ca Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Wed, 23 Aug 2023 19:42:36 -0500
+Subject: [PATCH] Add support for VPN DNS lookup
+
+---
+ .../services/dnsmasq/files/dnsmasq.init       | 27 +++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/package/network/services/dnsmasq/files/dnsmasq.init b/package/network/services/dnsmasq/files/dnsmasq.init
+index 205bfb4cf6..cfc8f82fcc 100644
+--- a/package/network/services/dnsmasq/files/dnsmasq.init
++++ b/package/network/services/dnsmasq/files/dnsmasq.init
+@@ -992,6 +992,33 @@ dnsmasq_start()
+ 		xappend "--resolv-file=$resolvfile"
+ 		[ "$resolvfile" = "/tmp/resolv.conf.d/resolv.conf.auto" ] && localuse=1
+ 		resolvdir="$(dirname "$resolvfile")"
++	else
++		config_get resolvfile "$cfg" resolvfile
++		vpns=$(uci show vpn-ifaces | sed -n "s/.*vpn='\?\([^']*\)'\?/\1/p")
++		for vpn in $vpns; do
++		    [ "$resolvfile" = "/tmp/resolv.conf.${vpn}" ] && {
++			local server=$(cat $resolvfile | sed -n "s/nameserver \([0-9.]*\).*/\1/; 1p")
++			[ -n "${server}" ] && {
++			    if [ "$vpn" = "wg" ]; then
++				server=${server}@wg1
++			    elif [ "$vpn" = "openvpn" ]; then
++				server=${server}@tun1
++			    elif [ "$vpn" = "ipsec" ]; then
++				local ip=$(ip rule | sed -r -n s'/.*from ([0-9.]*) lookup 220\b.*/\1/p')
++				[ -n "$ip" ] && {
++				    server=${server}@${ip}
++				} || {
++				    server=
++				}
++			    fi
++			}
++
++			[ -n "$server" ] && {
++			    append_server $server
++			}
++			break
++		    }
++		done
+ 	fi
+ 	config_get_bool localuse "$cfg" localuse "$localuse"
+ 
+-- 
+2.34.1
+

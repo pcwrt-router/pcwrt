@@ -1614,6 +1614,106 @@ function get_vpn_ifaces(c, vpn_name)
     return ifaces
 end
 
+local function _update_firewall_for_vpnc(c)
+    local updatefw = false
+    local dels = {}
+    c:foreach('firewall', 'redirect', function(s)
+	if s.target == 'DNAT' and
+	    string_in_array(s.src, {'wan','wgc','vpnc'}) and
+	    (s.enabled == nil or s.enabled == '1') then
+	    local net = get_network_for_ip(c, s.dest_ip)
+	    if net then
+		local wan = 'wan'
+		c:foreach('vpn-ifaces', 'vpn-iface', function(s2)
+		    if s2.iface == net.name then
+			if s2.vpn == 'openvpn' then
+			    wan = 'vpnc'
+			elseif s2.vpn == 'wg' then
+			    wan = 'wgc'
+			end
+			return false
+		    end
+		end)
+
+		if wan ~= s.src then
+		    updatefw = true
+		    c:set('firewall', s['.name'], 'src', wan)
+		end
+	    else
+		dels[#dels+1] = s['.name']
+	    end
+	end
+    end)
+
+    if #dels > 0 then
+	for _, del in ipairs(dels) do
+	    c:delete('firewall', del)
+	end
+    end
+
+    local success = true
+    if updatefw or #dels > 0 then
+	success = c:commit('firewall')
+    end
+    return success
+end
+
+local function _update_dhcp_for_vpnc(c)
+    local vpn_ifaces = 'vpn-ifaces'
+    local dhcp = 'dhcp'
+
+    local s1 = c:get_first(dhcp, 'dnsmasq')
+    if not s1 then return false end
+
+    local opts = c:get_all(dhcp, s1)
+
+    local dels = {}
+    c:foreach(dhcp, 'dnsmasq', function(s)
+	dels[#dels+1] = s['.name']
+    end)
+
+    for _, s in ipairs(dels) do
+	c:delete(dhcp, s)
+    end
+
+    local vfaces = {}
+    local ifaces = {}
+    c:foreach(vpn_ifaces, 'vpn-iface', function(s)
+	vfaces[#vfaces+1] = s.iface
+	local iface = ifaces[s.vpn]
+	if not iface then
+	    ifaces[s.vpn] = {s.iface}
+	else
+	    iface[#iface+1] = s.iface
+	end
+    end)
+
+    local s = c:section(dhcp, 'dnsmasq')
+    for k, v in pairs(opts) do
+	if not k:starts('.') and k ~= 'notinterface' then
+	    c:set(dhcp, s, k, v)
+	end
+    end
+
+    if #vfaces > 0 then
+	c:set_list(dhcp, s, 'notinterface', vfaces)
+	for vpn, ifs in pairs(ifaces) do
+	    s = c:section(dhcp, 'dnsmasq')
+	    for k, v in pairs(opts) do
+		if not k:starts('.') and not string_in_array(v, {'notinterface', 'resolvfile'}) then
+		    c:set(dhcp, s, k, v)
+		end
+	    end
+	    c:set(dhcp, s, 'resolvfile', '/tmp/resolv.conf.'..vpn)
+	    c:set(dhcp, s, 'noresolv', '1')
+	    c:set_list(dhcp, s, 'notinterface', {'lo'})
+	    c:set_list(dhcp, s, 'interface', ifs)
+	end
+    end
+
+    return c:commit(dhcp)
+end
+
 function set_vpn_ifaces(c, vpn_name, ifaces, cfgs)
     local vpn_ifaces = 'vpn-ifaces'
     local vpnifcs = {}
@@ -1645,45 +1745,12 @@ function set_vpn_ifaces(c, vpn_name, ifaces, cfgs)
 
     local success = c:commit(vpn_ifaces)
     if success then
-	local updatefw = false
-	local dels = {}
-	c:foreach('firewall', 'redirect', function(s)
-	    if s.target == 'DNAT' and
-		string_in_array(s.src, {'wan','wgc','vpnc'}) and
-		(s.enabled == nil or s.enabled == '1') then
-		local net = get_network_for_ip(c, s.dest_ip)
-		if net then
-		    local wan = 'wan'
-		    c:foreach('vpn-ifaces', 'vpn-iface', function(s2)
-			if s2.iface == net.name then
-			    if s2.vpn == 'openvpn' then
-				wan = 'vpnc'
-			    elseif s2.vpn == 'wg' then
-				wan = 'wgc'
-			    end
-			    return false
-			end
-		    end)
+	success = _update_firewall_for_vpnc(c)
+    end
 
-		    if wan ~= s.src then
-			updatefw = true
-			c:set('firewall', s['.name'], 'src', wan)
-		    end
-		else
-		    dels[#dels+1] = s['.name']
-		end
-	    end
-	end)
-
-	if #dels > 0 then
-	    for _, del in ipairs(dels) do
-		c:delete('firewall', del)
-	    end
-	end
-
-	if updatefw or #dels > 0 then
-	    success = c:commit('firewall')
-	end
+    if success then
+	add_if_not_exists(cfgs, 'dhcp')
+	success = _update_dhcp_for_vpnc(c)
     end
 
     return success
