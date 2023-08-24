@@ -1,0 +1,70 @@
+From f667c16697593f109bd523e1537a0ab44a209e65 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Wed, 23 Aug 2023 20:44:20 -0500
+Subject: [PATCH] Firewall updates
+
+---
+ package/network/config/firewall/Makefile      |  1 +
+ .../config/firewall/files/firewall.config     |  5 +++++
+ .../config/firewall/files/postup.include      | 21 +++++++++++++++++++
+ 3 files changed, 27 insertions(+)
+ create mode 100644 package/network/config/firewall/files/postup.include
+
+diff --git a/package/network/config/firewall/Makefile b/package/network/config/firewall/Makefile
+index 9ae7c06573..64be976663 100644
+--- a/package/network/config/firewall/Makefile
++++ b/package/network/config/firewall/Makefile
+@@ -57,6 +57,7 @@ define Package/firewall/install
+ 	$(INSTALL_CONF) ./files/firewall.user $(1)/etc/firewall.user
+ 	$(INSTALL_DIR) $(1)/usr/share/fw3
+ 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/helpers.conf $(1)/usr/share/fw3
++	$(INSTALL_CONF) ./files/postup.include $(1)/usr/share/fw3
+ endef
+ 
+ $(eval $(call BuildPackage,firewall))
+diff --git a/package/network/config/firewall/files/firewall.config b/package/network/config/firewall/files/firewall.config
+index 61cfe665e4..5ebbe77729 100644
+--- a/package/network/config/firewall/files/firewall.config
++++ b/package/network/config/firewall/files/firewall.config
+@@ -144,6 +144,11 @@ config rule
+ config include
+ 	option path /etc/firewall.user
+ 
++config include
++	option type 'script'
++	option path '/usr/share/fw3/postup.include'
++	option family 'any'
++	option reload '1'
+ 
+ ### EXAMPLE CONFIG SECTIONS
+ # do not allow a specific ip to access wan
+diff --git a/package/network/config/firewall/files/postup.include b/package/network/config/firewall/files/postup.include
+new file mode 100644
+index 0000000000..3b8107d39a
+--- /dev/null
++++ b/package/network/config/firewall/files/postup.include
+@@ -0,0 +1,21 @@
++#!/bin/sh
++. /lib/functions.sh
++. /lib/functions/network.sh
++
++network_get_ipaddr lanip lan
++network_get_device ifwan wan
++
++[ -z "$lanip" -o -z "$ifwan" ] && exit 0
++
++iptables -S INPUT | grep '!fw3: postup' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -S forwarding_rule | grep '!fw3: postup' | while read RULE; do
++    eval iptables ${RULE/-A/-D}
++done
++
++iptables -I INPUT 5 -m set --match-set vpnguest src -m mark ! --mark 0x1/0x1 -j DROP -m comment --comment '!fw3: postup'
++iptables -I INPUT 5 -m set --match-set vpnguest src -d $lanip -p tcp -m tcp -m multiport --dports 53,80,443 -j ACCEPT -m comment --comment '!fw3: postup'
++iptables -I INPUT 5 -m set --match-set vpnguest src -d $lanip -p udp -m udp --dport 53 -j ACCEPT -m comment --comment '!fw3: postup'
++iptables -I forwarding_rule -m set --match-set vpnguest src ! -o $ifwan -j DROP -m comment --comment '!fw3: postup'
+-- 
+2.34.1
+
