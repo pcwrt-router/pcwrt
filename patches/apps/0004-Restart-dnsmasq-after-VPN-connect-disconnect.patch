@@ -1,0 +1,29 @@
+From 78010052088b23abc020834537b07fa04c861c59 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Thu, 24 Aug 2023 21:20:02 -0500
+Subject: [PATCH] Restart dnsmasq after VPN connect/disconnect
+
+---
+ package/network/utils/wireguard-tools/files/linux.ash | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/package/network/utils/wireguard-tools/files/linux.ash b/package/network/utils/wireguard-tools/files/linux.ash
+index 649abbfe78..1631cf054e 100755
+--- a/package/network/utils/wireguard-tools/files/linux.ash
++++ b/package/network/utils/wireguard-tools/files/linux.ash
+@@ -154,10 +154,12 @@ set_dns() {
+ 	echo "nameserver $dns"
+     done >/tmp/resolv.conf.wg
+     HAVE_SET_DNS=1
++    /etc/init.d/dnsmasq restart
+ }
+ 
+ unset_dns() {
+     rm -f /tmp/resolv.conf.wg
++    /etc/init.d/dnsmasq restart
+ }
+ 
+ add_route() {
+-- 
+2.34.1
+

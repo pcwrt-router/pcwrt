@@ -1,0 +1,28 @@
+From fcfd58a468cb2ce0db00a5729237e0da23729673 Mon Sep 17 00:00:00 2001
+From: pcWRT Team <pcwrt@pcwrt.com>
+Date: Thu, 24 Aug 2023 21:23:35 -0500
+Subject: [PATCH] Restart dnsmasq after VPN connect/disconnect
+
+---
+ net/openvpn/files/update-resolv-conf | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/openvpn/files/update-resolv-conf b/net/openvpn/files/update-resolv-conf
+index 7de8457d0..524c1a63b 100755
+--- a/net/openvpn/files/update-resolv-conf
++++ b/net/openvpn/files/update-resolv-conf
+@@ -47,9 +47,11 @@ case "$script_type" in
+ 	[ "$SRCHS" ] && R="${R}search $SRCHS
+ "
+ 	echo -n "$R" >/tmp/resolv.conf.openvpn
++	/etc/init.d/dnsmasq restart
+ 	;;
+   down)
+ 	rm /tmp/resolv.conf.openvpn
++	/etc/init.d/dnsmasq restart
+ 	;;
+ esac
+ 
+-- 
+2.34.1
+
