@@ -4,6 +4,7 @@ local sys = require "luci.sys"
 module("luci.pccontroller.myip", package.seeall)
 
 need_authentication = false
+anon_access = true
 
 function index()
     local myip = http.getenv('HTTP_X_FORWARDED_FOR')

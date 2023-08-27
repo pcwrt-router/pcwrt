@@ -1028,13 +1028,13 @@ function update_firewall_lan_ipset(c, ip, is_add)
     c:foreach(firewall, 'zone', function(z)
 	if z.name ~= 'wan' then
 	    local ipaddr = c:get(network, z.name, 'ipaddr')
-	    if ipaddr and ipaddr ~= '127.0.0.1' and ipaddr ~= ip then
-		ips[#ips+1] = ipaddr
+	    if ipaddr and ipaddr ~= '127.0.0.1' then
+		add_if_not_exists(ips, ipaddr)
 	    end
 	end
     end)
 
-    if is_add and ip then ips[#ips+1] = ip end
+    if is_add and ip then add_if_not_exists(ips, ip) end
     c:set_list(firewall, ipset, 'entry', ips)
 end
 
@@ -1318,6 +1318,7 @@ function create_vlan_network(c, nw_name, cfgs)
 	    update_firewall_lan_ipset(c, p.ip, true)
 	    add_if_not_exists(cfgs, 'network')
 	end
+	return
     end
 
     c:section(network_cfg, 'interface', p.name)

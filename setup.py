@@ -154,6 +154,12 @@ def _apply_feeds_packages_patches():
         os.chdir('%s/feeds/packages' % openwrt)
         for patch in patches:
             run(["git", "am", "-3", str(patch)], check=True)
+
+        os.chdir(base_dir)
+        run(["patch", "-N",
+            "openwrt/feeds/luci/modules/luci-base/root/etc/config/ucitrack",
+            "patches/luci/0001-ucitrack.patch"], check=False)
+
         print('### Done patching feeds/packages')
     except:
         print('### Patching feeds/packages failed')
