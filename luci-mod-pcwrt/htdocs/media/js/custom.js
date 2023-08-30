@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ */
+
 (function($) {
 Date.prototype.stdTimezoneOffset = function() {
     var jan = new Date(this.getFullYear(), 0, 1);

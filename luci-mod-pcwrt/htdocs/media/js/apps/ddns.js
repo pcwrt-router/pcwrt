@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ */
+
 function change_service_provider() {
     var sp = $('#servicesel').val();
     $('.service-option').each(function() {

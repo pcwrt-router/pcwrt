@@ -1,3 +1,7 @@
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ */
 function display_disabled() {
     $('#wg-status').text(msgs.disabled)
     .parent().removeClass('alert-success').addClass('alert-danger');

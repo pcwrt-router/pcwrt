@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ */
+
 function switch_protocol() {
     var sel = $('#protosel').val();
     $('.proto-option').each(function() {

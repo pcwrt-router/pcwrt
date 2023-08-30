@@ -1,3 +1,6 @@
+-- Copyright (C) 2023 pcwrt.com
+-- Licensed to the public under the Apache License 2.0.
+
 MAX_CFG_SIZE = 1024*1024
 
 function bool_equivalent(b1, b2)

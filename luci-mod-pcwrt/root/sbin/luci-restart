@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Copyright (C) 2023 pcwrt.com
+#
+# This is free software, licensed under the Apache License, Version 2.0
+#
 . /lib/functions.sh
 
 apply_config() {

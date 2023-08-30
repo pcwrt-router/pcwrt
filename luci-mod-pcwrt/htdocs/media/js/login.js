@@ -1,4 +1,7 @@
-/*!
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ *
  * jQuery Cookie Plugin v1.4.1
  * https://github.com/carhartl/jquery-cookie
  *

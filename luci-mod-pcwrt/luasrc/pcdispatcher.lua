@@ -1,4 +1,7 @@
 --- LuCI web dispatcher.
+-- Copyright (C) 2023 pcwrt.com
+-- Licensed to the public under the Apache License 2.0.
+
 require "luci.pcutil"
 require "luci.tools.arp"
 require "luci.version"

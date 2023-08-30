@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2023 pcwrt.com
+ * Licensed to the public under the Apache License 2.0.
+ */
+
 function macfilter_change($e) {
     var v = $e.val();
     var $mldiv = $e.parents('div.form-group:first').next();
