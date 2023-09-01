@@ -17,4 +17,4 @@
 * OpenVPN Configuration
 ![OpenVPN](screenshots/OpenVPN.png?raw=true "OpenVPN Configuration")
 * WireGuard Configuration
-![WireGuard+VPN](screenshots/WireGuard+VPN.png?raw=true "WireGuard VPN Configuration")
+![WireGuard VPN](screenshots/WireGuard VPN.png?raw=true "WireGuard VPN Configuration")
