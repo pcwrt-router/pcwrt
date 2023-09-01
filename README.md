@@ -7,6 +7,9 @@
 
 \* Package dependencies are not fully sorted out yet, so please consult the example config files to build a new target.
 
+## Demo site
+https://demo.pcwrt.com
+
 ## Screenshots
 * Settings Page
 ![Settings](screenshots/Settings.png?raw=true "Router Settings")
