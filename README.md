@@ -8,8 +8,13 @@
 \* Package dependencies are not fully sorted out yet, so please consult the example config files to build a new target.
 
 ## Screenshots
+* Settings Page
 ![Settings](screenshots/Settings.png?raw=true "Router Settings")
+* VLAN Configuration
 ![VLAN](screenshots/VLAN.png?raw=true "VLAN Configuration")
+* Add an SSID
 ![Wireless Settings](screenshots/Wireless.png?raw=true "Wireless Configuration")
+* OpenVPN Configuration
 ![OpenVPN](screenshots/OpenVPN.png?raw=true "OpenVPN Configuration")
-![WireGuard VPN](screenshots/WireGuard+VPN.png?raw=true "WireGuard VPN Configuration")
+* WireGuard Configuration
+![WireGuard+VPN](screenshots/WireGuard+VPN.png?raw=true "WireGuard VPN Configuration")
